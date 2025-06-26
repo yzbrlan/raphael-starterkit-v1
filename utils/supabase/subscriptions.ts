@@ -110,10 +110,10 @@ export async function getUserSubscription(userId: string) {
     .select(
       `
       *,
-      customer:customers(user_id)
+      customers!inner(user_id)
     `
     )
-    .eq("customer.user_id", userId)
+    .eq("customers.user_id", userId)
     .eq("status", "active")
     .single();
 
