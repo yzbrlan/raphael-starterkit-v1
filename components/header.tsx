@@ -21,12 +21,11 @@ export default function Header({ user }: HeaderProps) {
   const pathname = usePathname();
   const isDashboard = pathname?.startsWith("/dashboard");
 
-  // Main navigation items that are always shown
+  // Main navigation items for Chinese Name Generator
   const mainNavItems: NavItem[] = [
-    { label: "Features", href: "#features" },
-    { label: "Pricing", href: "#pricing" },
-    { label: "FAQ", href: "#faq" },
-    { label: "Contact", href: "#contact" },
+    { label: "Home", href: "/" },
+    { label: "Popular Names", href: "/product/popular-names" },
+    { label: "About", href: "/product/about" },
   ];
 
   // Dashboard items - empty array as we don't want navigation items in dashboard
