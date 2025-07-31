@@ -87,14 +87,14 @@ export default function NameCard({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          chinese_name: name.chinese,
-          pinyin: name.pinyin,
-          meaning: name.meaning,
-          cultural_notes: name.culturalNotes,
-          personality_match: name.personalityMatch,
-          characters: name.characters,
+          chinese_name: safeName.chinese,
+          pinyin: safeName.pinyin,
+          meaning: safeName.meaning,
+          cultural_notes: safeName.culturalNotes,
+          personality_match: safeName.personalityMatch,
+          characters: safeName.characters,
           generation_metadata: {
-            style: name.style,
+            style: safeName.style,
             saved_from: 'main_generator',
             saved_at: new Date().toISOString()
           }
@@ -104,7 +104,7 @@ export default function NameCard({
       if (response.ok) {
         toast({
           title: "Name saved!",
-          description: `${name.chinese} has been added to your collection.`,
+          description: `${safeName.chinese} has been added to your collection.`,
         });
         onSave?.();
       } else {
@@ -137,14 +137,27 @@ export default function NameCard({
   ] as const;
 
   // Function to truncate text
-  const truncateText = (text: string, maxLength: number = 150) => {
+  const truncateText = (text: string | undefined, maxLength: number = 150) => {
+    if (!text) return '';
     if (text.length <= maxLength) return text;
     return text.substring(0, maxLength) + '...';
   };
 
   // Check if text needs truncation
-  const needsTruncation = (text: string, maxLength: number = 150) => {
+  const needsTruncation = (text: string | undefined, maxLength: number = 150) => {
+    if (!text) return false;
     return text.length > maxLength;
+  };
+
+  // Safe access to name properties with defaults
+  const safeName = {
+    chinese: name?.chinese || '',
+    pinyin: name?.pinyin || '',
+    meaning: name?.meaning || '',
+    culturalNotes: name?.culturalNotes || '',
+    personalityMatch: name?.personalityMatch || '',
+    style: name?.style || '',
+    characters: name?.characters || []
   };
 
   const renderContent = () => {
@@ -155,9 +168,9 @@ export default function NameCard({
             <div>
               <h4 className="font-semibold text-sm text-foreground mb-2">Name Meaning</h4>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                {isExpanded ? name.meaning : truncateText(name.meaning)}
+                {isExpanded ? safeName.meaning : truncateText(safeName.meaning)}
               </p>
-              {needsTruncation(name.meaning) && (
+              {needsTruncation(safeName.meaning) && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -174,9 +187,9 @@ export default function NameCard({
             <div>
               <h4 className="font-semibold text-sm text-foreground mb-2">Why It Suits You</h4>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                {isExpanded ? name.personalityMatch : truncateText(name.personalityMatch)}
+                {isExpanded ? safeName.personalityMatch : truncateText(safeName.personalityMatch)}
               </p>
-              {needsTruncation(name.personalityMatch) && (
+              {needsTruncation(safeName.personalityMatch) && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -198,7 +211,7 @@ export default function NameCard({
           <div className="space-y-3">
             <h4 className="font-semibold text-sm text-foreground mb-3">Character Breakdown</h4>
             <div className="space-y-3">
-              {name.characters.map((char, charIndex) => (
+              {safeName.characters.map((char, charIndex) => (
                 <div key={char.character} className="flex items-start space-x-3 p-3 bg-muted/50 rounded-lg">
                   <div className="font-serif text-lg text-primary w-8 h-8 flex items-center justify-center bg-background rounded border border-border flex-shrink-0">
                     {char.character}
@@ -215,7 +228,7 @@ export default function NameCard({
                 </div>
               ))}
             </div>
-            {name.characters.some(char => char.explanation && needsTruncation(char.explanation, 80)) && (
+            {safeName.characters.some(char => char.explanation && needsTruncation(char.explanation, 80)) && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -236,9 +249,9 @@ export default function NameCard({
           <div className="space-y-3">
             <h4 className="font-semibold text-sm text-foreground mb-2">Cultural Context</h4>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              {isExpanded ? name.culturalNotes : truncateText(name.culturalNotes)}
+              {isExpanded ? safeName.culturalNotes : truncateText(safeName.culturalNotes)}
             </p>
-            {needsTruncation(name.culturalNotes) && (
+            {needsTruncation(safeName.culturalNotes) && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -277,7 +290,7 @@ export default function NameCard({
       {/* Style badge */}
       <div className="absolute top-3 left-3 z-10">
         <Badge variant="secondary" className="bg-background/80 backdrop-blur-sm text-xs">
-          {name.style}
+          {safeName.style}
         </Badge>
       </div>
 
@@ -285,10 +298,10 @@ export default function NameCard({
       <CardHeader className="p-6 pb-4 pt-12 flex-shrink-0">
         <CardTitle className="space-y-2">
           <div className="font-serif text-2xl text-primary min-h-[2rem] flex items-center">
-            {name.chinese}
+            {safeName.chinese}
           </div>
           <div className="text-sm text-muted-foreground font-normal min-h-[1.25rem]">
-            {name.pinyin}
+            {safeName.pinyin}
           </div>
         </CardTitle>
       </CardHeader>

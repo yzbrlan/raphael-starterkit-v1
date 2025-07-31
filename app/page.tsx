@@ -41,9 +41,16 @@ export default function Home() {
   const { toast } = useToast();
   
   const [generatedNames, setGeneratedNames] = useState<NameData[]>([]);
-  const [generationBatches, setGenerationBatches] = useState<any[]>([]); // Store all generation batches from DB
-  const [currentPage, setCurrentPage] = useState(0); // Current page in history
-  const [totalPages, setTotalPages] = useState(0); // Total pages available
+  
+  // Current batch state
+  const [currentBatch, setCurrentBatch] = useState<any | null>(null);
+  const [currentGenerationRound, setCurrentGenerationRound] = useState(1);
+  const [totalGenerationRounds, setTotalGenerationRounds] = useState(1);
+  
+  // History browsing state (for different batches)
+  const [isInHistoryMode, setIsInHistoryMode] = useState(false);
+  
+  // UI state
   const [isGenerating, setIsGenerating] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [currentFormData, setCurrentFormData] = useState<FormData | null>(null);
@@ -60,37 +67,12 @@ export default function Home() {
         // Clear localStorage flag for authenticated users
         localStorage.removeItem('hasTriedFreeGeneration');
         setHasTriedFree(false);
-        // Load generation history for authenticated users
-        loadGenerationHistory();
       }
     }
   }, [user, loading]);
 
-  // Load generation history from database
-  const loadGenerationHistory = async (page = 0) => {
-    if (!user) return;
 
-    setIsLoadingHistory(true);
-    try {
-      const response = await fetch(`/api/generation-batches?page=${page}&limit=10`);
-      if (response.ok) {
-        const data = await response.json();
-        setGenerationBatches(data.batches);
-        setTotalPages(data.pagination.totalPages);
-        
-        // If there are batches and we're not showing results yet, show the latest batch
-        if (data.batches.length > 0 && !showResults) {
-          // Don't automatically show results, let user decide
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load generation history:', error);
-    } finally {
-      setIsLoadingHistory(false);
-    }
-  };
-
-  const handleGenerate = async (formData: FormData) => {
+  const handleGenerate = async (formData: FormData, forceNewBatch = false) => {
     // Check if it's a free trial attempt
     if (!user && hasTriedFree) {
       toast({
@@ -102,15 +84,32 @@ export default function Home() {
     }
 
     setIsGenerating(true);
-    setCurrentFormData(formData);
+    
+    // Determine if we need a new batch
+    const needsNewBatch = forceNewBatch || 
+                         isInHistoryMode || 
+                         !currentBatch || 
+                         compareFormParameters(formData, currentFormData);
+    
+    // If creating new batch, update form data and exit history mode
+    if (needsNewBatch) {
+      setCurrentFormData(formData);
+      setIsInHistoryMode(false);
+    }
 
     try {
+      const requestBody = {
+        ...formData,
+        continueBatch: !needsNewBatch,
+        batchId: !needsNewBatch ? currentBatch?.id : undefined
+      };
+
       const response = await fetch('/api/chinese-names/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await response.json();
@@ -135,11 +134,29 @@ export default function Home() {
       setGeneratedNames(data.names);
       setShowResults(true);
       
-      // For authenticated users, reload history to include the new batch
-      if (user && data.batchId) {
-        setCurrentPage(0); // Reset to first page (latest generation)
-        await loadGenerationHistory(0); // Reload to get the new batch
+      // Update batch and round information
+      if (data.batch) {
+        setCurrentBatch(data.batch);
+        setCurrentGenerationRound(data.generationRound);
+        
+        // Calculate total rounds based on total names / 6 (names per round)
+        // For new batches, total rounds equals current round
+        // For continued batches, use the actual total from database
+        const estimatedTotalRounds = data.isContinuation 
+          ? Math.ceil(data.batch.totalNamesGenerated / 6)
+          : data.generationRound; // For new batches, current round is the total
+        
+        console.log('Updating pagination state:', {
+          isContinuation: data.isContinuation,
+          currentRound: data.generationRound,
+          totalNamesGenerated: data.batch.totalNamesGenerated,
+          estimatedTotalRounds,
+          oldTotalRounds: totalGenerationRounds
+        });
+        
+        setTotalGenerationRounds(estimatedTotalRounds);
       }
+      
       
       // Mark free trial as used for non-authenticated users
       if (!user) {
@@ -149,7 +166,7 @@ export default function Home() {
       }
 
       toast({
-        title: "Names generated successfully!",
+        title: data.message || "Names generated successfully!",
         description: `Generated ${data.names.length} unique Chinese names${data.creditsUsed ? ` using ${data.creditsUsed} credits` : ' for free'}`,
       });
     } catch (error) {
@@ -167,33 +184,64 @@ export default function Home() {
 
   const handleRegenerate = async () => {
     if (!currentFormData) return;
-    await handleGenerate(currentFormData);
+    // Always force new batch when regenerating from button
+    await handleGenerate(currentFormData, true);
+  };
+
+  const handleContinueGeneration = async () => {
+    if (!currentFormData || !currentBatch) return;
+    // Continue in same batch - parameters haven't changed
+    await handleGenerate(currentFormData, false);
   };
 
   const handleBackToForm = () => {
     setShowResults(false);
     setGeneratedNames([]);
     setCurrentFormData(null);
-    setCurrentPage(0);
+    setCurrentBatch(null);
+    setCurrentGenerationRound(1);
+    setTotalGenerationRounds(1);
+    setIsInHistoryMode(false);
   };
 
-  // Handle page navigation
-  const handlePageChange = async (pageIndex: number) => {
-    if (!user || pageIndex < 0 || pageIndex >= totalPages) return;
+  // Compare form parameters to determine if new batch is needed
+  const compareFormParameters = (newForm: FormData, oldForm: FormData | null): boolean => {
+    if (!oldForm) return true; // First generation always creates new batch
     
-    setCurrentPage(pageIndex);
+    return (
+      newForm.englishName !== oldForm.englishName ||
+      newForm.gender !== oldForm.gender ||
+      newForm.birthYear !== oldForm.birthYear ||
+      newForm.personalityTraits !== oldForm.personalityTraits ||
+      newForm.namePreferences !== oldForm.namePreferences ||
+      newForm.planType !== oldForm.planType
+    );
+  };
+
+
+  // Handle batch-internal round navigation (within same batch)
+  const handleRoundChange = async (roundIndex: number) => {
+    if (!user || !currentBatch || roundIndex < 1 || roundIndex > totalGenerationRounds) return;
     
-    // If we have the batch in memory, use it
-    if (generationBatches[pageIndex]) {
-      setGeneratedNames(generationBatches[pageIndex].names);
-    } else {
-      // Otherwise, load from API
-      await loadGenerationHistory(pageIndex);
-      if (generationBatches[0]) {
-        setGeneratedNames(generationBatches[0].names);
+    setIsLoadingHistory(true);
+    
+    try {
+      const response = await fetch(`/api/generation-batches/${currentBatch.id}?round=${roundIndex}`);
+      if (response.ok) {
+        const data = await response.json();
+        setGeneratedNames(data.names);
+        setCurrentGenerationRound(roundIndex);
+        // Don't update totalGenerationRounds here - keep the current state
+        // The total should only be updated when actually generating new names
+        // setTotalGenerationRounds(data.pagination.totalRounds);
       }
+    } catch (error) {
+      console.error('Failed to load round:', error);
+    } finally {
+      setIsLoadingHistory(false);
     }
   };
+
 
   const scrollToForm = () => {
     const formSection = document.querySelector('[data-name-generator-form]');
@@ -302,6 +350,23 @@ export default function Home() {
                     isGenerating={isGenerating}
                     hasTriedFree={hasTriedFree}
                   />
+                  
+                  {/* Personal Center Button for authenticated users */}
+                  {user && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3, delay: 0.2 }}
+                      className="text-center mt-6"
+                    >
+                      <button
+                        onClick={() => router.push('/profile')}
+                        className="inline-flex items-center gap-2 px-6 py-3 text-sm font-medium text-primary hover:text-primary/80 transition-colors border border-primary/20 hover:border-primary/40 rounded-lg"
+                      >
+                        👤 Profile - View History & Saved Names
+                      </button>
+                    </motion.div>
+                  )}
                 </div>
               </motion.div>
             ) : (
@@ -310,12 +375,23 @@ export default function Home() {
                 onRegenerate={handleRegenerate}
                 onBackToForm={handleBackToForm}
                 isGenerating={isGenerating}
-                // Pagination props
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={handlePageChange}
+                // Batch-internal pagination props (for same batch, different rounds)
+                currentPage={currentGenerationRound - 1} // Convert to 0-based index
+                totalPages={totalGenerationRounds}
+                onPageChange={(page) => handleRoundChange(page + 1)} // Convert back to 1-based
                 isAuthenticated={!!user}
                 isLoadingHistory={isLoadingHistory}
+                // History browsing props  
+                isHistoryView={isInHistoryMode}
+                currentBatchInfo={currentBatch ? {
+                  englishName: currentBatch.englishName,
+                  gender: currentBatch.gender,
+                  planType: currentBatch.planType,
+                  createdAt: currentBatch.createdAt
+                } : undefined}
+                // New props for continue generation
+                showContinueGeneration={!isInHistoryMode && !!currentBatch}
+                onContinueGeneration={handleContinueGeneration}
               />
             )}
           </div>

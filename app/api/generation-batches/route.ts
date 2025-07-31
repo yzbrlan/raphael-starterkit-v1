@@ -92,12 +92,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       batches: transformedBatches,
       pagination: {
-        page,
+        currentPage: page,
         limit,
-        total: count || 0,
+        totalCount: count || 0,
         totalPages: Math.ceil((count || 0) / limit),
         hasNextPage: offset + limit < (count || 0),
-        hasPreviousPage: page > 0
+        hasPrevPage: page > 0
       }
     });
 

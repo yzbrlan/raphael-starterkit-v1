@@ -22,6 +22,9 @@ interface GenerateNameRequest {
   personalityTraits?: string;
   namePreferences?: string;
   planType: '1' | '4'; // 1 = Standard, 4 = Premium
+  // Batch continuation parameters
+  continueBatch?: boolean; // true if continuing existing batch
+  batchId?: string; // batch ID to continue
 }
 
 interface NameData {
@@ -48,9 +51,9 @@ export async function POST(request: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
     const body: GenerateNameRequest = await request.json();
-    const { englishName, gender, birthYear, personalityTraits, namePreferences, planType } = body;
+    const { englishName, gender, birthYear, personalityTraits, namePreferences, planType, continueBatch, batchId } = body;
 
-    console.log('Request body:', { englishName, gender, planType, hasUser: !!user });
+    console.log('Request body:', { englishName, gender, planType, continueBatch, batchId, hasUser: !!user });
 
     if (!englishName || !gender || !planType) {
       console.error('Missing required fields:', { englishName, gender, planType });
@@ -353,39 +356,110 @@ Requirements:
     }
 
     // Save generation batch and names to database for authenticated users
-    let batchId = null;
+    let resultBatchId: string | null = null;
+    let currentGenerationRound = 1;
+    let batch: any = null;
+    
     if (user) {
       try {
-        // Create generation batch record
-        const { data: batch, error: batchError } = await supabase
-          .from('generation_batches')
-          .insert({
-            user_id: user.id,
-            english_name: englishName,
-            gender: gender,
-            birth_year: birthYear,
-            personality_traits: personalityTraits,
-            name_preferences: namePreferences,
-            plan_type: planType,
-            credits_used: parseInt(planType),
-            names_count: names.length,
-            generation_metadata: {
-              generation_timestamp: new Date().toISOString(),
-              ai_model: "google/gemini-2.5-flash",
-              temperature: planType === '4' ? 0.9 : 0.8
-            }
-          })
-          .select()
-          .single();
-
-        if (batchError) {
-          console.error('Failed to create batch:', batchError);
-        } else {
-          batchId = batch.id;
+        if (continueBatch && batchId) {
+          // CONTINUE EXISTING BATCH MODE
+          console.log('Continuing existing batch:', batchId);
           
-          // Save individual names
+          // Verify batch exists and belongs to user
+          const { data: existingBatch, error: fetchBatchError } = await supabase
+            .from('generation_batches')
+            .select('*')
+            .eq('id', batchId)
+            .eq('user_id', user.id)
+            .single();
+
+          if (fetchBatchError || !existingBatch) {
+            console.error('Failed to find existing batch:', fetchBatchError);
+            return NextResponse.json(
+              { error: 'Invalid batch ID or batch not found' },
+              { status: 400 }
+            );
+          }
+
+          batch = existingBatch;
+          resultBatchId = batch.id;
+
+          // Get the highest generation_round for this batch
+          const { data: maxRoundData, error: maxRoundError } = await supabase
+            .from('generated_names')
+            .select('generation_round')
+            .eq('batch_id', batchId)
+            .order('generation_round', { ascending: false })
+            .limit(1)
+            .single();
+
+          if (maxRoundError && maxRoundError.code !== 'PGRST116') { // PGRST116 = no rows found
+            console.error('Failed to get max generation round:', maxRoundError);
+          }
+
+          currentGenerationRound = (maxRoundData?.generation_round || 0) + 1;
+          console.log('Next generation round:', currentGenerationRound);
+
+          // Update batch with new totals
+          const newNamesCount = (batch.names_count || 0) + names.length;
+          const newCreditsUsed = (batch.credits_used || 0) + parseInt(planType);
+          
+          const { error: updateBatchError } = await supabase
+            .from('generation_batches')
+            .update({
+              names_count: newNamesCount,
+              credits_used: newCreditsUsed,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', batchId);
+
+          if (updateBatchError) {
+            console.error('Failed to update batch totals:', updateBatchError);
+          } else {
+            // Update the batch object with new totals for the response
+            batch.names_count = newNamesCount;
+            batch.credits_used = newCreditsUsed;
+          }
+
+        } else {
+          // CREATE NEW BATCH MODE
+          console.log('Creating new batch');
+          
+          const { data: newBatch, error: batchError } = await supabase
+            .from('generation_batches')
+            .insert({
+              user_id: user.id,
+              english_name: englishName,
+              gender: gender,
+              birth_year: birthYear,
+              personality_traits: personalityTraits,
+              name_preferences: namePreferences,
+              plan_type: planType,
+              credits_used: parseInt(planType),
+              names_count: names.length,
+              generation_metadata: {
+                generation_timestamp: new Date().toISOString(),
+                ai_model: "google/gemini-2.5-flash",
+                temperature: planType === '4' ? 0.9 : 0.8
+              }
+            })
+            .select()
+            .single();
+
+          if (batchError) {
+            console.error('Failed to create batch:', batchError);
+          } else {
+            batch = newBatch;
+            resultBatchId = batch.id;
+            currentGenerationRound = 1;
+          }
+        }
+
+        // Save individual names with generation_round
+        if (resultBatchId) {
           const namesToInsert = names.map((name, index) => ({
-            batch_id: batch.id,
+            batch_id: resultBatchId,
             chinese_name: name.chinese,
             pinyin: name.pinyin,
             characters: name.characters,
@@ -393,8 +467,16 @@ Requirements:
             cultural_notes: name.culturalNotes,
             personality_match: name.personalityMatch,
             style: name.style,
-            position_in_batch: index
+            position_in_batch: index,
+            generation_round: currentGenerationRound
           }));
+
+          console.log('About to insert names:', {
+            batchId: resultBatchId,
+            round: currentGenerationRound,
+            count: namesToInsert.length,
+            firstNameSample: namesToInsert[0]
+          });
 
           const { error: namesError } = await supabase
             .from('generated_names')
@@ -402,6 +484,8 @@ Requirements:
 
           if (namesError) {
             console.error('Failed to save generated names:', namesError);
+          } else {
+            console.log(`Successfully saved ${names.length} names to batch ${resultBatchId}, round ${currentGenerationRound}`);
           }
         }
 
@@ -422,7 +506,9 @@ Requirements:
               generation_details: {
                 name_count: names.length,
                 generation_timestamp: new Date().toISOString(),
-                batch_id: batchId
+                batch_id: resultBatchId,
+                generation_round: currentGenerationRound,
+                is_continuation: continueBatch || false
               }
             }
           });
@@ -436,8 +522,21 @@ Requirements:
       total: names.length,
       planType,
       creditsUsed: user ? parseInt(planType) : 0,
-      batchId: batchId,
-      message: `Generated ${names.length} unique Chinese names successfully!`
+      batchId: resultBatchId,
+      generationRound: currentGenerationRound,
+      isContinuation: continueBatch || false,
+      batch: batch ? {
+        id: batch.id,
+        englishName: batch.english_name,
+        gender: batch.gender,
+        planType: batch.plan_type,
+        totalNamesGenerated: batch.names_count,
+        totalCreditsUsed: batch.credits_used,
+        createdAt: batch.created_at
+      } : null,
+      message: continueBatch 
+        ? `Generated ${names.length} more names for your batch (Round ${currentGenerationRound})!`
+        : `Generated ${names.length} unique Chinese names successfully!`
     });
 
   } catch (error) {

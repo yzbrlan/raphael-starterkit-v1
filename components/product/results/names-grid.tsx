@@ -28,12 +28,23 @@ interface NamesGridProps {
   onRegenerate: () => void;
   onBackToForm: () => void;
   isGenerating?: boolean;
-  // Pagination props
+  // Pagination props (now for batch-internal rounds)
   currentPage?: number;
   totalPages?: number;
   onPageChange?: (pageIndex: number) => void;
   isAuthenticated?: boolean;
   isLoadingHistory?: boolean;
+  // History browsing props
+  isHistoryView?: boolean;
+  currentBatchInfo?: {
+    englishName: string;
+    gender: string;
+    planType: string;
+    createdAt: string;
+  };
+  // Continue generation props
+  showContinueGeneration?: boolean;
+  onContinueGeneration?: () => void;
 }
 
 export default function NamesGrid({ 
@@ -45,7 +56,11 @@ export default function NamesGrid({
   totalPages = 1,
   onPageChange,
   isAuthenticated = false,
-  isLoadingHistory = false
+  isLoadingHistory = false,
+  isHistoryView = false,
+  currentBatchInfo,
+  showContinueGeneration = false,
+  onContinueGeneration
 }: NamesGridProps) {
   const { toast } = useToast();
   const [selectedName, setSelectedName] = useState<string | null>(null);
@@ -193,7 +208,7 @@ export default function NamesGrid({
           animate={{ opacity: 1, y: 0 }}
           className="text-3xl font-bold tracking-tight text-foreground"
         >
-          Choose Your Chinese Name
+          {isHistoryView ? 'Historical Generation' : 'Choose Your Chinese Name'}
         </motion.h2>
         <motion.p
           initial={{ opacity: 0, y: 20 }}
@@ -201,9 +216,12 @@ export default function NamesGrid({
           transition={{ delay: 0.1 }}
           className="text-muted-foreground text-lg"
         >
-          {totalPages > 1 && isAuthenticated ? (
+          {isHistoryView && currentBatchInfo ? (
             <>
-              Generation {currentPage + 1} of {totalPages} - {names.length} unique names. Click on your favorite to select it.
+              Generated for "{currentBatchInfo.englishName}" ({currentBatchInfo.gender}, {currentBatchInfo.planType} plan) - {names.length} unique names.
+              <div className="text-sm mt-1">
+                Created: {new Date(currentBatchInfo.createdAt).toLocaleDateString()}
+              </div>
             </>
           ) : (
             <>
@@ -212,29 +230,6 @@ export default function NamesGrid({
           )}
         </motion.p>
         
-        {/* Pagination indicator for authenticated users with multiple generations */}
-        {totalPages > 1 && isAuthenticated && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="flex flex-col items-center gap-2"
-          >
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span>Generation {currentPage + 1} of {totalPages}</span>
-              {currentPage === 0 && (
-                <span className="bg-primary/10 text-primary px-2 py-1 rounded-full text-xs font-medium">
-                  Latest
-                </span>
-              )}
-            </div>
-            {totalPages > 1 && (
-              <div className="text-xs text-muted-foreground">
-                Browse through your generation history using the pagination controls below
-              </div>
-            )}
-          </motion.div>
-        )}
       </div>
 
       {/* Names Grid */}
@@ -262,8 +257,8 @@ export default function NamesGrid({
         ))}
       </div>
 
-      {/* Pagination Controls for authenticated users */}
-      {totalPages > 1 && isAuthenticated && onPageChange && (
+      {/* Pagination Controls - Always show for authenticated users */}
+      {isAuthenticated && onPageChange && (
         <div className="flex justify-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -274,45 +269,64 @@ export default function NamesGrid({
               variant="ghost"
               size="sm"
               onClick={() => onPageChange(currentPage - 1)}
-              disabled={currentPage === 0 || isLoadingHistory}
+              disabled={currentPage === 0 || isLoadingHistory || totalPages === 1}
               className="h-8 w-8 p-0"
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
             
-            {/* Page indicators */}
+            {/* Page indicators - simplified < 1 > style */}
             <div className="flex items-center gap-1">
-              {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                let pageIndex = i;
-                if (totalPages > 5) {
-                  if (currentPage <= 2) {
-                    pageIndex = i;
-                  } else if (currentPage >= totalPages - 3) {
-                    pageIndex = totalPages - 5 + i;
-                  } else {
-                    pageIndex = currentPage - 2 + i;
+              {totalPages === 1 ? (
+                <Button
+                  variant="default"
+                  size="sm"
+                  disabled
+                  className="h-8 w-8 p-0 text-xs bg-primary text-primary-foreground"
+                >
+                  1
+                </Button>
+              ) : (
+                Array.from({ length: Math.min(totalPages || 1, 5) }, (_, i) => {
+                  let pageIndex = i;
+                  const safeTotalPages = totalPages || 1;
+                  const safeCurrentPage = currentPage || 0;
+                  
+                  if (safeTotalPages > 5) {
+                    if (safeCurrentPage <= 2) {
+                      pageIndex = i;
+                    } else if (safeCurrentPage >= safeTotalPages - 3) {
+                      pageIndex = safeTotalPages - 5 + i;
+                    } else {
+                      pageIndex = safeCurrentPage - 2 + i;
+                    }
                   }
-                }
-                
-                return (
-                  <Button
-                    key={pageIndex}
-                    variant={currentPage === pageIndex ? "default" : "ghost"}
-                    size="sm"
-                    onClick={() => onPageChange(pageIndex)}
-                    disabled={isLoadingHistory}
-                    className={`h-8 w-8 p-0 text-xs ${
-                      currentPage === pageIndex ? 'bg-primary text-primary-foreground' : ''
-                    }`}
-                  >
-                    {isLoadingHistory && currentPage === pageIndex ? (
-                      <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      pageIndex + 1
-                    )}
-                  </Button>
-                );
-              })}
+                  
+                  // Ensure pageIndex is valid
+                  if (isNaN(pageIndex) || pageIndex < 0) {
+                    pageIndex = i;
+                  }
+                  
+                  return (
+                    <Button
+                      key={`page-${pageIndex}-${i}`}
+                      variant={safeCurrentPage === pageIndex ? "default" : "ghost"}
+                      size="sm"
+                      onClick={() => onPageChange && onPageChange(pageIndex)}
+                      disabled={isLoadingHistory}
+                      className={`h-8 w-8 p-0 text-xs ${
+                        safeCurrentPage === pageIndex ? 'bg-primary text-primary-foreground' : ''
+                      }`}
+                    >
+                      {isLoadingHistory && safeCurrentPage === pageIndex ? (
+                        <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        pageIndex + 1
+                      )}
+                    </Button>
+                  );
+                })
+              )}
               {totalPages > 5 && currentPage < totalPages - 3 && (
                 <>
                   <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
@@ -332,7 +346,7 @@ export default function NamesGrid({
               variant="ghost"
               size="sm"
               onClick={() => onPageChange(currentPage + 1)}
-              disabled={currentPage === totalPages - 1 || isLoadingHistory}
+              disabled={currentPage === totalPages - 1 || isLoadingHistory || totalPages === 1}
               className="h-8 w-8 p-0"
             >
               <ChevronRight className="h-4 w-4" />
@@ -343,23 +357,24 @@ export default function NamesGrid({
 
       {/* Action buttons */}
       <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-        <Button
-          onClick={onRegenerate}
-          disabled={isGenerating}
-          size="lg"
-          className="bg-primary hover:bg-primary/90 text-primary-foreground px-8"
-        >
-          {isGenerating ? (
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Generating...
-            </div>
-          ) : (
-            totalPages > 1 && isAuthenticated ? 
-              `Generate ${names.length} More Names` : 
-              `Generate ${names.length} New Names`
-          )}
-        </Button>
+        {/* Continue Generation Button (only when not in history view) */}
+        {showContinueGeneration && onContinueGeneration && !isHistoryView && (
+          <Button
+            onClick={onContinueGeneration}
+            disabled={isGenerating}
+            size="lg"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground px-8"
+          >
+            {isGenerating ? (
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Generating...
+              </div>
+            ) : (
+              `Generate 6 More Names`
+            )}
+          </Button>
+        )}
         
         {/* Save All Names Button for authenticated users */}
         {isAuthenticated && (

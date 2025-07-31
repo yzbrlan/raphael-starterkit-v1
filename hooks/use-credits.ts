@@ -29,6 +29,7 @@ export function useCredits(): UseCreditsResult {
     if (!user) {
       setCredits(null);
       setLoading(false);
+      setError(null);
       return;
     }
 
@@ -40,13 +41,24 @@ export function useCredits(): UseCreditsResult {
       const data = await response.json();
 
       if (!response.ok) {
+        // Handle 401 Unauthorized gracefully
+        if (response.status === 401) {
+          setCredits(null);
+          setError(null); // Don't show error for unauthenticated users
+          return;
+        }
         throw new Error(data.error || 'Failed to fetch credits');
       }
 
       setCredits(data.credits);
     } catch (err) {
-      console.error('Error fetching credits:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch credits');
+      // Only log errors that aren't auth-related
+      if (err instanceof Error && !err.message.includes('Unauthorized') && !err.message.includes('Failed to fetch')) {
+        console.error('Error fetching credits:', err);
+        setError(err.message);
+      } else {
+        setError(null);
+      }
     } finally {
       setLoading(false);
     }
