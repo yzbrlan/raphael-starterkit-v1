@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { 
   Card, 
@@ -48,6 +49,7 @@ export default function NameCard({
 }: NameCardProps) {
   const { toast } = useToast();
   const { user } = useUser();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<'meaning' | 'characters' | 'cultural'>('meaning');
   const [isExpanded, setIsExpanded] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -523,10 +525,9 @@ export default function NameCard({
             className="text-xs text-primary hover:text-primary/80 hover:bg-primary/10 h-8"
             onClick={(e) => {
               e.stopPropagation();
-              toast({
-                title: "Detailed View",
-                description: "Detailed view feature coming soon!",
-              });
+              // 编码名字数据并跳转到详细页面
+              const encodedData = encodeURIComponent(JSON.stringify(safeName));
+              router.push(`/name-detail?data=${encodedData}`);
             }}
           >
             <Eye className="h-3 w-3 mr-1" />

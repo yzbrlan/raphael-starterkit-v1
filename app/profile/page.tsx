@@ -7,6 +7,14 @@ import { useUser } from "@/hooks/use-user";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -16,7 +24,9 @@ import {
   Heart, 
   Search, 
   ChevronRight,
-  Clock
+  Clock,
+  Trash2,
+  AlertTriangle
 } from "lucide-react";
 
 interface GenerationBatch {
@@ -65,6 +75,8 @@ export default function ProfilePage() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isLoadingSaved, setIsLoadingSaved] = useState(false);
   const [activeTab, setActiveTab] = useState("history");
+  const [deletingBatchId, setDeletingBatchId] = useState<string | null>(null);
+  const [batchToDelete, setBatchToDelete] = useState<GenerationBatch | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -138,6 +150,46 @@ export default function ProfilePage() {
 
   const handleViewBatch = (batchId: string) => {
     router.push(`/profile/batch/${batchId}`);
+  };
+
+  const handleDeleteBatch = async (batch: GenerationBatch) => {
+    setBatchToDelete(batch);
+  };
+
+  const confirmDeleteBatch = async () => {
+    if (!batchToDelete) return;
+    
+    setDeletingBatchId(batchToDelete.id);
+    try {
+      const response = await fetch(`/api/generation-batches?id=${batchToDelete.id}`, {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        // Remove from local state
+        setGenerationHistory(prev => prev.filter(b => b.id !== batchToDelete.id));
+        toast({
+          title: "Deleted Successfully",
+          description: `Generation record for "${batchToDelete.englishName}" has been deleted.`,
+        });
+      } else {
+        throw new Error('Failed to delete');
+      }
+    } catch (error) {
+      console.error('Failed to delete batch:', error);
+      toast({
+        title: "Delete Failed",
+        description: "Unable to delete generation record. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingBatchId(null);
+      setBatchToDelete(null);
+    }
+  };
+
+  const cancelDelete = () => {
+    setBatchToDelete(null);
   };
 
   if (loading) {
@@ -240,10 +292,10 @@ export default function ProfilePage() {
                       animate={{ opacity: 1, y: 0 }}
                       className="group"
                     >
-                      <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => handleViewBatch(batch.id)}>
+                      <Card className="hover:shadow-md transition-shadow relative group">
                         <CardContent className="p-6">
                           <div className="flex items-start justify-between">
-                            <div className="space-y-3 flex-1">
+                            <div className="space-y-3 flex-1 cursor-pointer" onClick={() => handleViewBatch(batch.id)}>
                               <div className="flex items-center gap-3">
                                 <h3 className="text-xl font-semibold">{batch.englishName}</h3>
                                 <Badge className={getPlanTypeColor(batch.planType)}>
@@ -290,7 +342,25 @@ export default function ProfilePage() {
                               )}
                             </div>
                             
-                            <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteBatch(batch);
+                                }}
+                                disabled={deletingBatchId === batch.id}
+                                className="h-8 w-8 p-0 text-muted-foreground hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all"
+                              >
+                                {deletingBatchId === batch.id ? (
+                                  <div className="w-4 h-4 border border-current border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-4 w-4" />
+                                )}
+                              </Button>
+                              <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                            </div>
                           </div>
                         </CardContent>
                       </Card>
@@ -375,6 +445,39 @@ export default function ProfilePage() {
           </Tabs>
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!batchToDelete} onOpenChange={() => cancelDelete()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+              Delete Generation Record
+            </DialogTitle>
+            <DialogDescription className="space-y-2">
+              <p>
+                Are you sure you want to delete the generation record for{" "}
+                <span className="font-semibold">{batchToDelete?.englishName}</span>?
+              </p>
+              <p className="text-sm text-muted-foreground">
+                This will permanently delete all {batchToDelete?.totalNamesGenerated} generated names 
+                and cannot be undone.
+              </p>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={cancelDelete}>
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmDeleteBatch}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Delete Record
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
