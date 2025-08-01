@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -49,12 +49,13 @@ interface NameGeneratorFormProps {
   onGenerate: (data: z.infer<typeof formSchema>) => Promise<void>;
   isGenerating: boolean;
   hasTriedFree?: boolean;
+  savedFormData?: any;
 }
 
-export default function NameGeneratorForm({ onGenerate, isGenerating, hasTriedFree = false }: NameGeneratorFormProps) {
+export default function NameGeneratorForm({ onGenerate, isGenerating, hasTriedFree = false, savedFormData }: NameGeneratorFormProps) {
   const { toast } = useToast();
   const { user } = useUser();
-  const { subscription } = useSubscription();
+  const subscriptionData = useSubscription();
   const { credits: userCredits, loading: creditsLoading } = useCredits();
   
   const form = useForm<z.infer<typeof formSchema>>({
@@ -68,6 +69,26 @@ export default function NameGeneratorForm({ onGenerate, isGenerating, hasTriedFr
       planType: "1",
     },
   });
+
+  // Load saved form data when component mounts or savedFormData changes
+  useEffect(() => {
+    if (savedFormData) {
+      console.log('Loading saved form data:', savedFormData);
+      form.reset({
+        englishName: savedFormData.englishName || "",
+        gender: savedFormData.gender || "male",
+        birthYear: savedFormData.birthYear || "",
+        personalityTraits: savedFormData.personalityTraits || "",
+        namePreferences: savedFormData.namePreferences || "",
+        planType: "1", // Always default to standard
+      });
+      
+      toast({
+        title: "Welcome back!",
+        description: "Your previous form data has been restored. You can modify it and generate again.",
+      });
+    }
+  }, [savedFormData, form, toast]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
@@ -92,7 +113,7 @@ export default function NameGeneratorForm({ onGenerate, isGenerating, hasTriedFr
   // Check if user has enough credits
   const creditCost = parseInt(form.watch('planType') || '1');
   const currentCredits = userCredits?.remaining_credits || 0;
-  const hasEnoughCredits = user && currentCredits >= creditCost;
+  const hasEnoughCredits = user ? currentCredits >= creditCost : true;
 
   return (
     <motion.div

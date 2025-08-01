@@ -23,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Shuffle, Bookmark, BookmarkCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/use-user";
+import NameCard from "@/components/product/results/name-card";
 
 const formSchema = z.object({
   gender: z.enum(["male", "female", "neutral"], {
@@ -152,214 +153,6 @@ function LoadingNamesGrid({ count }: { count: number }) {
   );
 }
 
-// Detailed Name Card Component
-const DetailedNameCard = memo(function DetailedNameCard({ 
-  name, 
-  isSelected, 
-  isSaved = false,
-  onSelect,
-  onSave,
-  gender,
-  style
-}: { 
-  name: NameData;
-  isSelected: boolean;
-  isSaved?: boolean;
-  onSelect: () => void;
-  onSave?: () => void;
-  gender: string;
-  style: string;
-}) {
-  const { toast } = useToast();
-  const { user } = useUser();
-  const [isSaving, setIsSaving] = useState(false);
-
-  const handleCopy = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    navigator.clipboard.writeText(name.chinese);
-    toast({
-      title: "Copied!",
-      description: `${name.chinese} has been copied to clipboard`,
-      duration: 2000,
-    });
-  }, [name.chinese, toast]);
-
-  const handleSave = useCallback(async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    
-    if (!user) {
-      toast({
-        title: "Sign in required",
-        description: "Please sign in to save names to your collection.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (isSaved) {
-      toast({
-        title: "Already saved",
-        description: "This name is already in your collection.",
-      });
-      return;
-    }
-
-    setIsSaving(true);
-
-    try {
-      const response = await fetch('/api/saved-names', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          chinese_name: name.chinese,
-          pinyin: name.pinyin,
-          meaning: name.meaning,
-          cultural_notes: name.culturalNotes,
-          personality_match: name.personalityMatch,
-          characters: name.characters,
-          generation_metadata: {
-            style: name.style,
-            saved_from: 'random_generator',
-            saved_at: new Date().toISOString()
-          }
-        }),
-      });
-
-      if (response.ok) {
-        toast({
-          title: "Name saved!",
-          description: `${name.chinese} has been added to your collection.`,
-        });
-        onSave?.();
-      } else {
-        const errorData = await response.json();
-        if (response.status === 409) {
-          toast({
-            title: "Already saved",
-            description: "This name is already in your collection.",
-          });
-        } else {
-          throw new Error(errorData.error || 'Failed to save name');
-        }
-      }
-    } catch (error) {
-      console.error('Failed to save name:', error);
-      toast({
-        title: "Failed to save",
-        description: "Something went wrong. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  }, [name, user, isSaved, toast, onSave]);
-
-  const handleFavorite = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    toast({
-      title: "Added to favorites!",
-      description: `${name.chinese} has been added to your favorites`,
-      duration: 2000,
-    });
-  }, [name.chinese, toast]);
-
-  // Split name into surname and given name
-  const surname = name.characters[0]?.character || '';
-  const givenName = name.characters.slice(1).map(c => c.character).join('') || '';
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.3 }}
-      className={`cursor-pointer transition-all duration-300 ${
-        isSelected ? 'scale-105' : 'hover:scale-102'
-      }`}
-      onClick={onSelect}
-    >
-      <Card className={`h-[300px] transition-all duration-300 ${
-        isSelected 
-          ? 'border-2 border-violet-500 bg-violet-50 shadow-lg' 
-          : 'border-2 border-gray-100 hover:border-violet-200 hover:shadow-md'
-      }`}>
-        <CardContent className="p-6 h-full flex flex-col">
-          {/* Chinese Name */}
-          <div className="text-center mb-4">
-            <div className="font-noto-serif text-2xl font-bold text-violet-700 mb-1">
-              {name.chinese}
-            </div>
-            <div className="text-violet-500 font-medium">
-              {name.pinyin}
-            </div>
-          </div>
-
-          {/* Name Breakdown */}
-          <div className="border-t border-gray-100 pt-4 mb-4">
-            <div className="text-sm text-gray-600 mb-2 text-center">
-              {surname} + {givenName} [{gender === 'neutral' ? 'Neutral' : gender === 'male' ? 'Male' : 'Female'}]
-            </div>
-            <div className="flex items-center justify-center gap-2 mb-3">
-              <Badge variant="secondary" className="text-xs bg-violet-100 text-violet-700">
-                {style === 'traditional' ? 'Traditional' : 
-                 style === 'nature-inspired' ? 'Nature' :
-                 style === 'achievement-focused' ? 'Achievement' :
-                 style === 'elegance-intellectual' ? 'Elegant' :
-                 style === 'celestial-aspiration' ? 'Celestial' :
-                 style === 'harmony-trustworthiness' ? 'Harmony' :
-                 style === 'strength-resilience' ? 'Strength' : style}
-              </Badge>
-            </div>
-          </div>
-
-          {/* Meaning */}
-          <div className="flex-1 overflow-hidden">
-            <div className="text-sm text-gray-700 mb-2 leading-relaxed">
-              {name.meaning.length > 60 ? `${name.meaning.substring(0, 60)}...` : name.meaning}
-            </div>
-            <div className="text-xs text-gray-500 leading-relaxed">
-              Beautiful meaning and bright future
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex justify-center gap-3 mt-4 pt-3 border-t border-gray-100">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="p-2 h-8 w-8 text-gray-500 hover:text-violet-600"
-              onClick={handleCopy}
-              title="Copy name"
-            >
-              📋
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className={`p-2 h-8 w-8 ${
-                isSaved 
-                  ? 'text-amber-600 hover:text-amber-700' 
-                  : 'text-gray-500 hover:text-amber-600'
-              } ${isSaving ? 'opacity-50' : ''}`}
-              onClick={handleSave}
-              disabled={isSaving}
-              title={isSaved ? "Already saved" : "Save to collection"}
-            >
-              {isSaving ? (
-                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-              ) : isSaved ? (
-                <BookmarkCheck className="h-4 w-4" />
-              ) : (
-                <Bookmark className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </motion.div>
-  );
-});
 
 export default function RandomNameGenerator() {
   const { toast } = useToast();
@@ -373,7 +166,7 @@ export default function RandomNameGenerator() {
     defaultValues: {
       gender: "neutral",
       style: "traditional",
-      count: "10",
+      count: "12",
       surnameInitial: "",
     },
   });
@@ -394,48 +187,126 @@ export default function RandomNameGenerator() {
     setSelectedName(null);
 
     try {
-      // For now, generate mock names since we don't have the API
-      const mockNames: NameData[] = [];
       const count = parseInt(values.count);
-      
-      for (let i = 0; i < count; i++) {
-        await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API delay
+      let allNames: NameData[] = [];
+
+      // Generate names in batches of 6 (API limitation)
+      const batchSize = 6;
+      const totalBatches = Math.ceil(count / batchSize);
+
+      for (let batch = 0; batch < totalBatches; batch++) {
+        const currentBatchSize = Math.min(batchSize, count - (batch * batchSize));
         
-        const mockName: NameData = {
-          chinese: `张天${i + 1}`,
-          pinyin: `Zhāng Tiān${i + 1}`,
-          characters: [
-            { character: "张", pinyin: "Zhāng", meaning: "Surname", explanation: "A traditional Chinese surname" },
-            { character: "天", pinyin: "Tiān", meaning: "Sky", explanation: "Represents vastness and aspiration" },
-            { character: `${i + 1}`, pinyin: "Number", meaning: "Order", explanation: "Sequential identifier" }
-          ],
-          meaning: `A ${values.style} name representing ${values.gender} characteristics`,
-          culturalNotes: "Traditional Chinese naming conventions",
-          personalityMatch: "Suits your chosen preferences",
-          style: values.style
+        // Create a synthetic English name based on preferences for random generation
+        const syntheticName = `Random${batch + 1}`;
+        
+        // Create personality traits based on style
+        let personalityTraits = "";
+        switch (values.style) {
+          case "nature-inspired":
+            personalityTraits = "Connected to nature, peaceful, appreciates natural beauty";
+            break;
+          case "achievement-focused":
+            personalityTraits = "Ambitious, goal-oriented, determined to succeed";
+            break;
+          case "elegance-intellectual":
+            personalityTraits = "Elegant, refined, values knowledge and wisdom";
+            break;
+          case "celestial-aspiration":
+            personalityTraits = "Visionary, aspiring, reaches for high goals";
+            break;
+          case "harmony-trustworthiness":
+            personalityTraits = "Harmonious, trustworthy, values relationships";
+            break;
+          case "strength-resilience":
+            personalityTraits = "Strong, resilient, overcomes challenges";
+            break;
+          default:
+            personalityTraits = "Well-balanced, traditional values, respects culture";
+        }
+
+        // Add surname preference if provided
+        let namePreferences = `Style: ${values.style}`;
+        if (values.surnameInitial) {
+          namePreferences += `, Surname should start with sound similar to "${values.surnameInitial}"`;
+        }
+
+        const requestBody = {
+          englishName: syntheticName,
+          gender: values.gender === "neutral" ? "other" : values.gender,
+          personalityTraits,
+          namePreferences,
+          planType: '1' // Standard plan for random generation
         };
-        
-        mockNames.push(mockName);
-        setGeneratedNames([...mockNames]);
-        
-        toast({
-          title: "New name generated!",
-          description: `${mockName.chinese} (${mockName.style})`,
-          duration: 2000,
+
+        console.log('Calling API with:', requestBody);
+
+        const response = await fetch('/api/chinese-names/generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody),
         });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `HTTP ${response.status}: Failed to generate names`);
+        }
+
+        const data = await response.json();
+        console.log('API response:', data);
+
+        if (data.names && Array.isArray(data.names)) {
+          // Update style field to match our form values
+          const batchNames = data.names.map((name: NameData) => ({
+            ...name,
+            style: values.style
+          }));
+          
+          allNames = [...allNames, ...batchNames];
+          setGeneratedNames([...allNames]);
+
+          // Show progress toast
+          toast({
+            title: `Batch ${batch + 1}/${totalBatches} complete!`,
+            description: `Generated ${batchNames.length} names (${allNames.length}/${count} total)`,
+            duration: 2000,
+          });
+        } else {
+          throw new Error('Invalid response format from API');
+        }
+
+        // Add delay between batches to avoid rate limiting
+        if (batch < totalBatches - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
       }
       
       setIsGenerating(false);
       toast({
         title: "Generation complete!",
-        description: `All ${count} names have been generated.`,
+        description: `Successfully generated ${allNames.length} unique Chinese names!`,
       });
+
     } catch (error) {
       console.error('Error generating names:', error);
       setIsGenerating(false);
+      
+      let errorMessage = "Failed to generate names. Please try again.";
+      if (error instanceof Error) {
+        if (error.message.includes('limit reached')) {
+          errorMessage = "Generation limit reached. Please sign in for unlimited access!";
+        } else if (error.message.includes('credits')) {
+          errorMessage = "Insufficient credits. Please purchase more credits.";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+
       toast({
         title: "Generation failed",
-        description: "Failed to generate names. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     }
@@ -622,7 +493,7 @@ export default function RandomNameGenerator() {
             </h3>
           </div>
 
-          <Suspense fallback={<LoadingNamesGrid count={parseInt(form.watch('count') || '10')} />}>
+          <Suspense fallback={<LoadingNamesGrid count={parseInt(form.watch('count') || '12')} />}>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {/* Show generated names */}
               {generatedNames.map((name, index) => (
@@ -633,14 +504,17 @@ export default function RandomNameGenerator() {
                   transition={{ duration: 0.3, delay: index * 0.1 }}
                 >
                   <NameCardErrorBoundary>
-                    <DetailedNameCard
+                    <NameCard
                       name={name}
                       isSelected={selectedName === name.chinese}
+                      isLiked={false}
                       isSaved={savedNames.has(name.chinese)}
                       onSelect={() => handleSelectName(name.chinese)}
+                      onLike={() => {}} // Not used in random generator
+                      onComment={() => {}} // Not used in random generator
+                      onShare={() => {}} // Not used in random generator
                       onSave={() => handleSaveName(name.chinese)}
-                      gender={form.watch('gender')}
-                      style={form.watch('style')}
+                      enableVoicePlayback={false}
                     />
                   </NameCardErrorBoundary>
                 </motion.div>
@@ -648,7 +522,7 @@ export default function RandomNameGenerator() {
               
               {/* Show skeleton cards for remaining slots while generating */}
               {isGenerating && Array.from({ 
-                length: Math.max(0, parseInt(form.watch('count') || '10') - generatedNames.length) 
+                length: Math.max(0, parseInt(form.watch('count') || '12') - generatedNames.length) 
               }, (_, index) => (
                 <motion.div
                   key={`skeleton-${generatedNames.length + index}`}

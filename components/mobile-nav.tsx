@@ -36,7 +36,7 @@ export function MobileNav({ items, user, isDashboard }: MobileNavProps) {
             <Link
               key={item.href}
               href={item.href}
-              className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+              className="text-lg font-semibold text-muted-foreground transition-colors hover:text-primary"
             >
               {item.label}
             </Link>

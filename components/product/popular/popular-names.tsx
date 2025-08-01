@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, Star, Users } from "lucide-react";
+import { Star, Users } from "lucide-react";
 
 interface PopularName {
   chinese: string;
@@ -117,9 +117,9 @@ export default function PopularNames({ showAll = false, onScrollToGenerator }: P
           animate={{ opacity: 1, y: 0 }}
           className="flex items-center justify-center gap-2 mb-4"
         >
-          <TrendingUp className="h-8 w-8 text-primary" />
+          <Star className="h-8 w-8 text-primary" />
           <h2 className="text-3xl font-bold tracking-tight text-foreground">
-            Trending Names
+            Popular Names
           </h2>
         </motion.div>
         <motion.p
@@ -201,8 +201,8 @@ export default function PopularNames({ showAll = false, onScrollToGenerator }: P
                       <span>Popular choice</span>
                     </div>
                     <div className="flex items-center gap-1">
-                      <TrendingUp className="h-3 w-3" />
-                      <span>Trending</span>
+                      <Star className="h-3 w-3" />
+                      <span>Popular</span>
                     </div>
                   </div>
                 </div>

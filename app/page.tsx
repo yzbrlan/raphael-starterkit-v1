@@ -10,6 +10,7 @@ import NameGeneratorForm from "@/components/product/generator/name-generator-for
 import NamesGrid from "@/components/product/results/names-grid";
 import ChineseNamePricing from "@/components/product/pricing/chinese-name-pricing";
 import PopularNames from "@/components/product/popular/popular-names";
+import { saveFormData, loadFormData } from "@/utils/form-storage";
 
 interface NameData {
   chinese: string;
@@ -70,6 +71,18 @@ export default function Home() {
       }
     }
   }, [user, loading]);
+
+  // Load saved form data when returning to form
+  const [savedFormData, setSavedFormData] = useState<any>(null);
+  useEffect(() => {
+    // When showResults becomes false (back to form), try to load saved data
+    if (!showResults && !savedFormData) {
+      const loadedData = loadFormData();
+      if (loadedData) {
+        setSavedFormData(loadedData);
+      }
+    }
+  }, [showResults, savedFormData]);
 
 
   const handleGenerate = async (formData: FormData, forceNewBatch = false) => {
@@ -165,6 +178,15 @@ export default function Home() {
         localStorage.setItem('hasTriedFreeGeneration', 'true');
       }
 
+      // Save form data to localStorage for "Back to Form" functionality
+      saveFormData({
+        englishName: formData.englishName,
+        gender: formData.gender,
+        birthYear: formData.birthYear,
+        personalityTraits: formData.personalityTraits,
+        namePreferences: formData.namePreferences
+      });
+
       toast({
         title: data.message || "Names generated successfully!",
         description: `Generated ${data.names.length} unique Chinese names${data.creditsUsed ? ` using ${data.creditsUsed} credits` : ' for free'}`,
@@ -197,7 +219,8 @@ export default function Home() {
   const handleBackToForm = () => {
     setShowResults(false);
     setGeneratedNames([]);
-    setCurrentFormData(null);
+    // Don't clear currentFormData - we want to preserve it for the form
+    // setCurrentFormData(null);
     setCurrentBatch(null);
     setCurrentGenerationRound(1);
     setTotalGenerationRounds(1);
@@ -349,6 +372,7 @@ export default function Home() {
                     onGenerate={handleGenerate}
                     isGenerating={isGenerating}
                     hasTriedFree={hasTriedFree}
+                    savedFormData={savedFormData}
                   />
                   
                   {/* Personal Center Button for authenticated users */}

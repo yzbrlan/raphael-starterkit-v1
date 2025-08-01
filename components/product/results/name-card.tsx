@@ -10,7 +10,7 @@ import {
   CardTitle 
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Heart, MessageSquare, Share, Eye, Bookmark, BookmarkCheck } from "lucide-react";
+import { Heart, MessageSquare, Share, Eye, Bookmark, BookmarkCheck, Volume2, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/use-user";
 
@@ -39,6 +39,7 @@ interface NameCardProps {
   onComment: () => void;
   onShare: () => void;
   onSave?: () => void;
+  enableVoicePlayback?: boolean; // Control whether to show voice playback
 }
 
 export default function NameCard({ 
@@ -50,13 +51,16 @@ export default function NameCard({
   onLike, 
   onComment, 
   onShare,
-  onSave 
+  onSave,
+  enableVoicePlayback = true 
 }: NameCardProps) {
   const { toast } = useToast();
   const { user } = useUser();
   const [activeTab, setActiveTab] = useState<'meaning' | 'characters' | 'cultural'>('meaning');
   const [isExpanded, setIsExpanded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
   const handleSave = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -127,6 +131,183 @@ export default function NameCard({
       });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handlePlayAudio = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (!user) {
+      toast({
+        title: "Sign in required",
+        description: "Please sign in to use voice playback.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (isPlaying) {
+      toast({
+        title: "Audio playing",
+        description: "Please wait for current audio to finish.",
+      });
+      return;
+    }
+
+    if (!safeName.chinese) {
+      toast({
+        title: "No text to play",
+        description: "Unable to play audio for this name.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsPlaying(true);
+
+    try {
+      const response = await fetch('/api/tts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: safeName.chinese
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        if (response.status === 503) {
+          throw new Error(errorData.message || 'Voice playback service is temporarily unavailable');
+        }
+        throw new Error(errorData.error || 'Failed to generate audio');
+      }
+
+      const result = await response.json();
+      
+      if (result.success && result.audioData) {
+        // Convert base64 to audio and play
+        const audioBlob = new Blob(
+          [Uint8Array.from(atob(result.audioData), c => c.charCodeAt(0))], 
+          { type: 'audio/mpeg' }
+        );
+        
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioUrl);
+        
+        audio.onended = () => {
+          setIsPlaying(false);
+          URL.revokeObjectURL(audioUrl);
+        };
+        
+        audio.onerror = () => {
+          setIsPlaying(false);
+          URL.revokeObjectURL(audioUrl);
+          toast({
+            title: "Playback failed",
+            description: "Unable to play the audio.",
+            variant: "destructive",
+          });
+        };
+        
+        await audio.play();
+        
+        toast({
+          title: "Playing audio",
+          description: `Playing pronunciation of ${safeName.chinese}`,
+        });
+      } else {
+        throw new Error('Invalid audio data received');
+      }
+    } catch (error) {
+      console.error('Failed to play audio:', error);
+      toast({
+        title: "Playback failed",
+        description: error instanceof Error ? error.message : "Something went wrong.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPlaying(false);
+    }
+  };
+
+  const handleGeneratePDF = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (!user) {
+      toast({
+        title: "Sign in required",
+        description: "Please sign in to generate PDF certificate.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (isGeneratingPDF) {
+      return;
+    }
+
+    setIsGeneratingPDF(true);
+
+    try {
+      // 获取用户的英文名字 - 这里需要从props或context获取
+      // 暂时使用用户ID作为fallback
+      const userData = {
+        englishName: user.user_metadata?.name || user.email?.split('@')[0] || 'User',
+        gender: user.user_metadata?.gender || 'other'
+      };
+
+      const response = await fetch('/api/generate-pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          nameData: safeName,
+          userData: userData
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        if (response.status === 403) {
+          toast({
+            title: "Insufficient credits",
+            description: errorData.error || "You need 1 credit to generate PDF certificate.",
+            variant: "destructive",
+          });
+          return;
+        }
+        throw new Error(errorData.error || 'Failed to generate PDF');
+      }
+
+      // 下载PDF文件
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `${safeName.chinese}_certificate.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "PDF generated successfully!",
+        description: `Certificate for ${safeName.chinese} has been downloaded.`,
+      });
+
+    } catch (error) {
+      console.error('Failed to generate PDF:', error);
+      toast({
+        title: "PDF generation failed",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingPDF(false);
     }
   };
 
@@ -297,8 +478,49 @@ export default function NameCard({
       {/* Header - Fixed height */}
       <CardHeader className="p-6 pb-4 pt-12 flex-shrink-0">
         <CardTitle className="space-y-2">
-          <div className="font-serif text-2xl text-primary min-h-[2rem] flex items-center">
+          <div className="font-serif text-2xl text-primary min-h-[2rem] flex items-center gap-2">
             {safeName.chinese}
+            {enableVoicePlayback && (
+              <>
+                {user ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={`h-6 w-6 p-0 flex-shrink-0 ${
+                      isPlaying 
+                        ? 'text-primary animate-pulse' 
+                        : 'text-muted-foreground hover:text-primary'
+                    }`}
+                    onClick={handlePlayAudio}
+                    disabled={isPlaying}
+                    title="Play pronunciation"
+                  >
+                    {isPlaying ? (
+                      <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Volume2 className="h-3 w-3" />
+                    )}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 flex-shrink-0 text-muted-foreground hover:text-primary"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toast({
+                        title: "Sign in required",
+                        description: "Please sign in to use voice playback feature!",
+                        variant: "destructive",
+                      });
+                    }}
+                    title="Sign in to play pronunciation"
+                  >
+                    <Volume2 className="h-3 w-3" />
+                  </Button>
+                )}
+              </>
+            )}
           </div>
           <div className="text-sm text-muted-foreground font-normal min-h-[1.25rem]">
             {safeName.pinyin}
@@ -395,6 +617,27 @@ export default function NameCard({
             >
               <Share className="h-4 w-4" />
             </Button>
+            {/* PDF Generation Button - Only for authenticated users */}
+            {user && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`h-8 w-8 p-0 ${
+                  isGeneratingPDF 
+                    ? 'text-red-500 animate-pulse' 
+                    : 'text-muted-foreground hover:text-red-500'
+                }`}
+                onClick={handleGeneratePDF}
+                disabled={isGeneratingPDF}
+                title="Generate PDF Certificate (1 Credit)"
+              >
+                {isGeneratingPDF ? (
+                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <FileText className="h-4 w-4" />
+                )}
+              </Button>
+            )}
           </div>
           <Button
             variant="ghost"
