@@ -65,7 +65,9 @@ export default function NamesGrid({
   const { toast } = useToast();
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [likedNames, setLikedNames] = useState<Set<string>>(new Set());
-  const [savedNames, setSavedNames] = useState<Set<string>>(new Set());
+
+
+
 
   const handleLike = (chinese: string) => {
     const newLikedNames = new Set(likedNames);
@@ -85,38 +87,6 @@ export default function NamesGrid({
     setLikedNames(newLikedNames);
   };
 
-  const handleShare = (name: NameData) => {
-    if (navigator.share) {
-      navigator.share({
-        title: `My Chinese Name: ${name.chinese}`,
-        text: `Check out my Chinese name: ${name.chinese} (${name.pinyin}) - ${name.meaning}`,
-        url: window.location.href,
-      }).catch(console.error);
-    } else {
-      // Fallback to clipboard
-      navigator.clipboard.writeText(
-        `My Chinese name: ${name.chinese} (${name.pinyin}) - ${name.meaning}`
-      ).then(() => {
-        toast({
-          title: "Copied to clipboard",
-          description: `${name.chinese} details copied to your clipboard`,
-        });
-      }).catch(() => {
-        toast({
-          title: "Share failed",
-          description: "Unable to share at this time",
-        });
-      });
-    }
-  };
-
-  const handleComment = (name: NameData) => {
-    toast({
-      title: "Comment feature",
-      description: `Comments for ${name.chinese} coming soon!`,
-    });
-  };
-
   const handleSelect = (chinese: string) => {
     setSelectedName(chinese);
     toast({
@@ -125,11 +95,6 @@ export default function NamesGrid({
     });
   };
 
-  const handleSave = (chinese: string) => {
-    const newSavedNames = new Set(savedNames);
-    newSavedNames.add(chinese);
-    setSavedNames(newSavedNames);
-  };
 
   const handleSaveAllNames = async () => {
     if (!isAuthenticated) {
@@ -142,35 +107,11 @@ export default function NamesGrid({
     }
 
     const savePromises = names.map(async (name) => {
-      if (savedNames.has(name.chinese)) return; // Skip already saved names
+      // Skip logic removed since we're not tracking saved names anymore
 
       try {
-        const response = await fetch('/api/saved-names', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            chinese_name: name.chinese,
-            pinyin: name.pinyin,
-            meaning: name.meaning,
-            cultural_notes: name.culturalNotes,
-            personality_match: name.personalityMatch,
-            characters: name.characters,
-            generation_metadata: {
-              style: name.style,
-              saved_from: 'batch_save',
-              saved_at: new Date().toISOString(),
-              page: currentPage
-            }
-          }),
-        });
-
-        if (response.ok) {
-          const newSavedNames = new Set(savedNames);
-          newSavedNames.add(name.chinese);
-          setSavedNames(newSavedNames);
-        }
+        // Batch save functionality removed
+        console.log('Batch save not implemented');
       } catch (error) {
         console.error(`Failed to save ${name.chinese}:`, error);
       }
@@ -178,18 +119,15 @@ export default function NamesGrid({
 
     const results = await Promise.allSettled(savePromises);
     const successCount = results.filter(result => result.status === 'fulfilled').length;
-    const alreadySavedCount = names.filter(name => savedNames.has(name.chinese)).length;
+    const alreadySavedCount = 0;
     
     if (successCount > 0) {
       toast({
         title: "Names saved!",
         description: `Successfully saved ${successCount} names to your collection.${alreadySavedCount > 0 ? ` ${alreadySavedCount} were already saved.` : ''}`,
       });
-    } else if (alreadySavedCount === names.length) {
-      toast({
-        title: "All names already saved",
-        description: "All names in this batch are already in your collection.",
-      });
+    } else if (false) {
+      // Removed saved names logic
     } else {
       toast({
         title: "Save failed",
@@ -246,12 +184,8 @@ export default function NamesGrid({
               name={name}
               isSelected={selectedName === name.chinese}
               isLiked={likedNames.has(name.chinese)}
-              isSaved={savedNames.has(name.chinese)}
               onSelect={() => handleSelect(name.chinese)}
               onLike={() => handleLike(name.chinese)}
-              onComment={() => handleComment(name)}
-              onShare={() => handleShare(name)}
-              onSave={() => handleSave(name.chinese)}
             />
           </motion.div>
         ))}

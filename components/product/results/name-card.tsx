@@ -10,7 +10,7 @@ import {
   CardTitle 
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Heart, MessageSquare, Share, Eye, Bookmark, BookmarkCheck, Volume2, FileText } from "lucide-react";
+import { Heart, Eye, Volume2, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/use-user";
 
@@ -33,106 +33,26 @@ interface NameCardProps {
   name: NameData;
   isSelected: boolean;
   isLiked: boolean;
-  isSaved?: boolean;
   onSelect: () => void;
   onLike: () => void;
-  onComment: () => void;
-  onShare: () => void;
-  onSave?: () => void;
   enableVoicePlayback?: boolean; // Control whether to show voice playback
 }
 
 export default function NameCard({ 
   name, 
   isSelected, 
-  isLiked, 
-  isSaved = false,
+  isLiked,
   onSelect, 
-  onLike, 
-  onComment, 
-  onShare,
-  onSave,
+  onLike,
   enableVoicePlayback = true 
 }: NameCardProps) {
   const { toast } = useToast();
   const { user } = useUser();
   const [activeTab, setActiveTab] = useState<'meaning' | 'characters' | 'cultural'>('meaning');
   const [isExpanded, setIsExpanded] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
-  const handleSave = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    
-    if (!user) {
-      toast({
-        title: "Sign in required",
-        description: "Please sign in to save names to your collection.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (isSaved) {
-      toast({
-        title: "Already saved",
-        description: "This name is already in your collection.",
-      });
-      return;
-    }
-
-    setIsSaving(true);
-
-    try {
-      const response = await fetch('/api/saved-names', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          chinese_name: safeName.chinese,
-          pinyin: safeName.pinyin,
-          meaning: safeName.meaning,
-          cultural_notes: safeName.culturalNotes,
-          personality_match: safeName.personalityMatch,
-          characters: safeName.characters,
-          generation_metadata: {
-            style: safeName.style,
-            saved_from: 'main_generator',
-            saved_at: new Date().toISOString()
-          }
-        }),
-      });
-
-      if (response.ok) {
-        toast({
-          title: "Name saved!",
-          description: `${safeName.chinese} has been added to your collection.`,
-        });
-        onSave?.();
-      } else {
-        const errorData = await response.json();
-        if (response.status === 409) {
-          toast({
-            title: "Already saved",
-            description: "This name is already in your collection.",
-          });
-        } else {
-          throw new Error(errorData.error || 'Failed to save name');
-        }
-      }
-    } catch (error) {
-      console.error('Failed to save name:', error);
-      toast({
-        title: "Failed to save",
-        description: "Something went wrong. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  };
 
   const handlePlayAudio = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -557,7 +477,7 @@ export default function NameCard({
           {renderContent()}
         </div>
 
-        {/* Social actions - Fixed at bottom */}
+        {/* Actions - Fixed at bottom */}
         <div className="flex items-center justify-between pt-4 border-t border-border mt-4 flex-shrink-0">
           <div className="flex space-x-1">
             <Button
@@ -574,48 +494,6 @@ export default function NameCard({
                   isLiked ? 'fill-primary text-primary' : ''
                 }`} 
               />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className={`h-8 w-8 p-0 ${
-                isSaved 
-                  ? 'text-amber-600 hover:text-amber-700' 
-                  : 'text-muted-foreground hover:text-amber-600'
-              } ${isSaving ? 'opacity-50' : ''}`}
-              onClick={handleSave}
-              disabled={isSaving}
-              title={isSaved ? "Already saved" : "Save to collection"}
-            >
-              {isSaving ? (
-                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-              ) : isSaved ? (
-                <BookmarkCheck className="h-4 w-4" />
-              ) : (
-                <Bookmark className="h-4 w-4" />
-              )}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 p-0 text-muted-foreground hover:text-blue-500"
-              onClick={(e) => {
-                e.stopPropagation();
-                onComment();
-              }}
-            >
-              <MessageSquare className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 p-0 text-muted-foreground hover:text-green-500"
-              onClick={(e) => {
-                e.stopPropagation();
-                onShare();
-              }}
-            >
-              <Share className="h-4 w-4" />
             </Button>
             {/* PDF Generation Button - Only for authenticated users */}
             {user && (

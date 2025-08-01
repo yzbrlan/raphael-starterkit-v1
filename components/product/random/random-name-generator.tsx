@@ -159,7 +159,7 @@ export default function RandomNameGenerator() {
   const [generatedNames, setGeneratedNames] = useState<NameData[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedName, setSelectedName] = useState<string | null>(null);
-  const [savedNames, setSavedNames] = useState<Set<string>>(new Set());
+  const [likedNames, setLikedNames] = useState<Set<string>>(new Set());
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -320,11 +320,23 @@ export default function RandomNameGenerator() {
     });
   }, [toast]);
 
-  const handleSaveName = useCallback((chinese: string) => {
-    const newSavedNames = new Set(savedNames);
-    newSavedNames.add(chinese);
-    setSavedNames(newSavedNames);
-  }, [savedNames]);
+  const handleLikeName = useCallback((chinese: string) => {
+    const newLikedNames = new Set(likedNames);
+    if (newLikedNames.has(chinese)) {
+      newLikedNames.delete(chinese);
+      toast({
+        title: "Name unliked",
+        description: `You removed ${chinese} from your favorites`,
+      });
+    } else {
+      newLikedNames.add(chinese);
+      toast({
+        title: "Name liked!",
+        description: `You added ${chinese} to your favorites`,
+      });
+    }
+    setLikedNames(newLikedNames);
+  }, [likedNames, toast]);
 
   return (
     <div className="space-y-8">
@@ -507,13 +519,9 @@ export default function RandomNameGenerator() {
                     <NameCard
                       name={name}
                       isSelected={selectedName === name.chinese}
-                      isLiked={false}
-                      isSaved={savedNames.has(name.chinese)}
+                      isLiked={likedNames.has(name.chinese)}
                       onSelect={() => handleSelectName(name.chinese)}
-                      onLike={() => {}} // Not used in random generator
-                      onComment={() => {}} // Not used in random generator
-                      onShare={() => {}} // Not used in random generator
-                      onSave={() => handleSaveName(name.chinese)}
+                      onLike={() => handleLikeName(name.chinese)}
                       enableVoicePlayback={false}
                     />
                   </NameCardErrorBoundary>

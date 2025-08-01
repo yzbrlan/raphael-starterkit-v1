@@ -16,8 +16,6 @@ import {
   Search, 
   ChevronLeft,
   ChevronRight,
-  Share,
-  MessageCircle
 } from "lucide-react";
 import NameCard from "@/components/product/results/name-card";
 
@@ -71,7 +69,6 @@ export default function BatchDetailsPage({ params }: BatchDetailsPageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingRound, setIsLoadingRound] = useState(false);
   const [likedNames, setLikedNames] = useState<Set<string>>(new Set());
-  const [savedNames, setSavedNames] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!loading && !user) {
@@ -202,6 +199,9 @@ export default function BatchDetailsPage({ params }: BatchDetailsPageProps) {
     return planType === '4' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700';
   };
 
+
+
+
   const handleLike = (chinese: string) => {
     const newLikedNames = new Set(likedNames);
     if (newLikedNames.has(chinese)) {
@@ -218,84 +218,6 @@ export default function BatchDetailsPage({ params }: BatchDetailsPageProps) {
       });
     }
     setLikedNames(newLikedNames);
-  };
-
-  const handleShare = (name: NameData) => {
-    if (navigator.share) {
-      navigator.share({
-        title: `我的中文名: ${name.chinese}`,
-        text: `看看我的中文名: ${name.chinese} (${name.pinyin}) - ${name.meaning}`,
-        url: window.location.href,
-      }).catch(console.error);
-    } else {
-      navigator.clipboard.writeText(
-        `我的中文名: ${name.chinese} (${name.pinyin}) - ${name.meaning}`
-      ).then(() => {
-        toast({
-          title: "Copied to clipboard",
-          description: `Details for ${name.chinese} copied`,
-        });
-      });
-    }
-  };
-
-  const handleComment = (name: NameData) => {
-    toast({
-      title: "Comment Feature",
-      description: `Comments for ${name.chinese} coming soon!`,
-    });
-  };
-
-  const handleSave = async (chinese: string) => {
-    const nameToSave = names.find(n => n.chinese === chinese);
-    if (!nameToSave) return;
-
-    try {
-      const response = await fetch('/api/saved-names', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          chinese_name: nameToSave.chinese,
-          pinyin: nameToSave.pinyin,
-          meaning: nameToSave.meaning,
-          cultural_notes: nameToSave.culturalNotes,
-          personality_match: nameToSave.personalityMatch,
-          characters: nameToSave.characters,
-          generation_metadata: {
-            style: nameToSave.style,
-            saved_from: 'batch_detail',
-            saved_at: new Date().toISOString(),
-            batch_id: batch?.id,
-            round: currentRound
-          }
-        }),
-      });
-
-      if (response.ok) {
-        const newSavedNames = new Set(savedNames);
-        newSavedNames.add(chinese);
-        setSavedNames(newSavedNames);
-        toast({
-          title: "Saved!",
-          description: `${chinese} saved to your collection`,
-        });
-      } else {
-        toast({
-          title: "Save Failed",
-          description: "Unable to save this name. Please try again.",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error('Failed to save name:', error);
-      toast({
-        title: "Save Failed",
-        description: "Network error. Please try again.",
-        variant: "destructive",
-      });
-    }
   };
 
   if (loading || isLoading) {
@@ -524,12 +446,8 @@ export default function BatchDetailsPage({ params }: BatchDetailsPageProps) {
                       name={name}
                       isSelected={false}
                       isLiked={likedNames.has(name.chinese)}
-                      isSaved={savedNames.has(name.chinese)}
                       onSelect={() => {}}
                       onLike={() => handleLike(name.chinese)}
-                      onComment={() => handleComment(name)}
-                      onShare={() => handleShare(name)}
-                      onSave={() => handleSave(name.chinese)}
                     />
                   </motion.div>
                 ))
