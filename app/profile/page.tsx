@@ -455,14 +455,13 @@ export default function ProfilePage() {
               Delete Generation Record
             </DialogTitle>
             <DialogDescription className="space-y-2">
-              <p>
-                Are you sure you want to delete the generation record for{" "}
-                <span className="font-semibold">{batchToDelete?.englishName}</span>?
-              </p>
-              <p className="text-sm text-muted-foreground">
+              Are you sure you want to delete the generation record for{" "}
+              <span className="font-semibold">{batchToDelete?.englishName}</span>?
+              <br />
+              <span className="text-sm text-muted-foreground">
                 This will permanently delete all {batchToDelete?.totalNamesGenerated} generated names 
                 and cannot be undone.
-              </p>
+              </span>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
