@@ -57,15 +57,15 @@ export default function NameDetailPage() {
           description: "Unable to load name details. Please try again.",
           variant: "destructive",
         });
-        router.back();
+        router.push('/');
       }
     } else {
       toast({
         title: "No Data",
-        description: "No name data provided. Returning to previous page.",
+        description: "No name data provided. Returning to homepage.",
         variant: "destructive",
       });
-      router.back();
+      router.push('/');
     }
   }, [searchParams, router, toast]);
 
@@ -264,11 +264,11 @@ export default function NameDetailPage() {
             <Button 
               variant="ghost" 
               size="sm" 
-              onClick={() => router.back()}
+              onClick={() => router.push('/results')}
               className="gap-2"
             >
               <ArrowLeft className="h-4 w-4" />
-              Back
+              Back to Results
             </Button>
             
             {user && (

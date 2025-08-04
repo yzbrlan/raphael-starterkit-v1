@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
@@ -62,6 +63,7 @@ export default function NamesGrid({
   showContinueGeneration = false,
   onContinueGeneration
 }: NamesGridProps) {
+  const router = useRouter();
   const { toast } = useToast();
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [likedNames, setLikedNames] = useState<Set<string>>(new Set());
@@ -324,7 +326,12 @@ export default function NamesGrid({
         )}
         
         <Button
-          onClick={onBackToForm}
+          onClick={() => {
+            // Clear session storage when going back to form
+            sessionStorage.removeItem('nameGenerationResults');
+            // Navigate to homepage
+            router.push('/');
+          }}
           variant="outline"
           size="lg"
           className="border-border text-muted-foreground hover:bg-muted px-8"

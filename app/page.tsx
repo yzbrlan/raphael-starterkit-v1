@@ -7,7 +7,6 @@ import { useUser } from "@/hooks/use-user";
 import { useToast } from "@/hooks/use-toast";
 
 import NameGeneratorForm from "@/components/product/generator/name-generator-form";
-import NamesGrid from "@/components/product/results/names-grid";
 import ChineseNamePricing from "@/components/product/pricing/chinese-name-pricing";
 import PopularNames from "@/components/product/popular/popular-names";
 import { saveFormData, loadFormData } from "@/utils/form-storage";
@@ -41,22 +40,9 @@ export default function Home() {
   const { user, loading } = useUser();
   const { toast } = useToast();
   
-  const [generatedNames, setGeneratedNames] = useState<NameData[]>([]);
-  
-  // Current batch state
-  const [currentBatch, setCurrentBatch] = useState<any | null>(null);
-  const [currentGenerationRound, setCurrentGenerationRound] = useState(1);
-  const [totalGenerationRounds, setTotalGenerationRounds] = useState(1);
-  
-  // History browsing state (for different batches)
-  const [isInHistoryMode, setIsInHistoryMode] = useState(false);
-  
   // UI state
   const [isGenerating, setIsGenerating] = useState(false);
-  const [showResults, setShowResults] = useState(false);
-  const [currentFormData, setCurrentFormData] = useState<FormData | null>(null);
   const [hasTriedFree, setHasTriedFree] = useState(false);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   // Check localStorage for previous free trial usage
   useEffect(() => {
@@ -72,20 +58,17 @@ export default function Home() {
     }
   }, [user, loading]);
 
-  // Load saved form data when returning to form
+  // Load saved form data
   const [savedFormData, setSavedFormData] = useState<any>(null);
   useEffect(() => {
-    // When showResults becomes false (back to form), try to load saved data
-    if (!showResults && !savedFormData) {
-      const loadedData = loadFormData();
-      if (loadedData) {
-        setSavedFormData(loadedData);
-      }
+    const loadedData = loadFormData();
+    if (loadedData) {
+      setSavedFormData(loadedData);
     }
-  }, [showResults, savedFormData]);
+  }, []);
 
 
-  const handleGenerate = async (formData: FormData, forceNewBatch = false) => {
+  const handleGenerate = async (formData: FormData) => {
     // Check if it's a free trial attempt
     if (!user && hasTriedFree) {
       toast({
@@ -97,32 +80,14 @@ export default function Home() {
     }
 
     setIsGenerating(true);
-    
-    // Determine if we need a new batch
-    const needsNewBatch = forceNewBatch || 
-                         isInHistoryMode || 
-                         !currentBatch || 
-                         compareFormParameters(formData, currentFormData);
-    
-    // If creating new batch, update form data and exit history mode
-    if (needsNewBatch) {
-      setCurrentFormData(formData);
-      setIsInHistoryMode(false);
-    }
 
     try {
-      const requestBody = {
-        ...formData,
-        continueBatch: !needsNewBatch,
-        batchId: !needsNewBatch ? currentBatch?.id : undefined
-      };
-
       const response = await fetch('/api/chinese-names/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify(formData),
       });
 
       const data = await response.json();
@@ -143,42 +108,30 @@ export default function Home() {
         throw new Error(data.error || 'Failed to generate names');
       }
 
-      // Set current generated names and show results
-      setGeneratedNames(data.names);
-      setShowResults(true);
+      // Calculate total rounds based on generation round
+      const estimatedTotalRounds = data.isContinuation 
+        ? Math.ceil(data.batch.totalNamesGenerated / 6)
+        : data.generationRound;
+
+      // Save results to sessionStorage and redirect to results page
+      const sessionData = {
+        names: data.names,
+        formData: formData,
+        batch: data.batch,
+        generationRound: data.generationRound,
+        totalGenerationRounds: estimatedTotalRounds,
+        isHistoryMode: false,
+      };
       
-      // Update batch and round information
-      if (data.batch) {
-        setCurrentBatch(data.batch);
-        setCurrentGenerationRound(data.generationRound);
-        
-        // Calculate total rounds based on total names / 6 (names per round)
-        // For new batches, total rounds equals current round
-        // For continued batches, use the actual total from database
-        const estimatedTotalRounds = data.isContinuation 
-          ? Math.ceil(data.batch.totalNamesGenerated / 6)
-          : data.generationRound; // For new batches, current round is the total
-        
-        console.log('Updating pagination state:', {
-          isContinuation: data.isContinuation,
-          currentRound: data.generationRound,
-          totalNamesGenerated: data.batch.totalNamesGenerated,
-          estimatedTotalRounds,
-          oldTotalRounds: totalGenerationRounds
-        });
-        
-        setTotalGenerationRounds(estimatedTotalRounds);
-      }
-      
+      sessionStorage.setItem('nameGenerationResults', JSON.stringify(sessionData));
       
       // Mark free trial as used for non-authenticated users
       if (!user) {
         setHasTriedFree(true);
-        // Store in localStorage to persist across page refreshes
         localStorage.setItem('hasTriedFreeGeneration', 'true');
       }
 
-      // Save form data to localStorage for "Back to Form" functionality
+      // Save form data to localStorage for future use
       saveFormData({
         englishName: formData.englishName,
         gender: formData.gender,
@@ -191,6 +144,9 @@ export default function Home() {
         title: data.message || "Names generated successfully!",
         description: `Generated ${data.names.length} unique Chinese names${data.creditsUsed ? ` using ${data.creditsUsed} credits` : ' for free'}`,
       });
+      
+      // Navigate to results page
+      router.push('/results');
     } catch (error) {
       console.error('Generation error:', error);
       const errorMessage = error instanceof Error ? error.message : "Something went wrong. Please try again.";
@@ -204,66 +160,6 @@ export default function Home() {
     }
   };
 
-  const handleRegenerate = async () => {
-    if (!currentFormData) return;
-    // Always force new batch when regenerating from button
-    await handleGenerate(currentFormData, true);
-  };
-
-  const handleContinueGeneration = async () => {
-    if (!currentFormData || !currentBatch) return;
-    // Continue in same batch - parameters haven't changed
-    await handleGenerate(currentFormData, false);
-  };
-
-  const handleBackToForm = () => {
-    setShowResults(false);
-    setGeneratedNames([]);
-    // Don't clear currentFormData - we want to preserve it for the form
-    // setCurrentFormData(null);
-    setCurrentBatch(null);
-    setCurrentGenerationRound(1);
-    setTotalGenerationRounds(1);
-    setIsInHistoryMode(false);
-  };
-
-  // Compare form parameters to determine if new batch is needed
-  const compareFormParameters = (newForm: FormData, oldForm: FormData | null): boolean => {
-    if (!oldForm) return true; // First generation always creates new batch
-    
-    return (
-      newForm.englishName !== oldForm.englishName ||
-      newForm.gender !== oldForm.gender ||
-      newForm.birthYear !== oldForm.birthYear ||
-      newForm.personalityTraits !== oldForm.personalityTraits ||
-      newForm.namePreferences !== oldForm.namePreferences ||
-      newForm.planType !== oldForm.planType
-    );
-  };
-
-
-  // Handle batch-internal round navigation (within same batch)
-  const handleRoundChange = async (roundIndex: number) => {
-    if (!user || !currentBatch || roundIndex < 1 || roundIndex > totalGenerationRounds) return;
-    
-    setIsLoadingHistory(true);
-    
-    try {
-      const response = await fetch(`/api/generation-batches/${currentBatch.id}?round=${roundIndex}`);
-      if (response.ok) {
-        const data = await response.json();
-        setGeneratedNames(data.names);
-        setCurrentGenerationRound(roundIndex);
-        // Don't update totalGenerationRounds here - keep the current state
-        // The total should only be updated when actually generating new names
-        // setTotalGenerationRounds(data.pagination.totalRounds);
-      }
-    } catch (error) {
-      console.error('Failed to load round:', error);
-    } finally {
-      setIsLoadingHistory(false);
-    }
-  };
 
 
   const scrollToForm = () => {
@@ -351,210 +247,176 @@ export default function Home() {
       <section className="py-16 bg-background">
         <div className="container px-4 md:px-6">
           <div className="mx-auto max-w-6xl">
-            {!showResults ? (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.3 }}
-                className="space-y-12"
-              >
-                <div className="text-center space-y-4">
-                  <h2 className="text-3xl font-bold tracking-tight text-foreground">
-                    Create Your Chinese Name
-                  </h2>
-                  <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-                    Tell us about yourself and let our AI create a meaningful Chinese name that reflects your personality and cultural significance.
-                  </p>
-                </div>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+              className="space-y-12"
+            >
+              <div className="text-center space-y-4">
+                <h2 className="text-3xl font-bold tracking-tight text-foreground">
+                  Create Your Chinese Name
+                </h2>
+                <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+                  Tell us about yourself and let our AI create a meaningful Chinese name that reflects your personality and cultural significance.
+                </p>
+              </div>
 
-                <div data-name-generator-form>
-                  <NameGeneratorForm 
-                    onGenerate={handleGenerate}
-                    isGenerating={isGenerating}
-                    hasTriedFree={hasTriedFree}
-                    savedFormData={savedFormData}
-                  />
-                  
-                  {/* Personal Center Button for authenticated users */}
-                  {user && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3, delay: 0.2 }}
-                      className="text-center mt-6"
+              <div data-name-generator-form>
+                <NameGeneratorForm 
+                  onGenerate={handleGenerate}
+                  isGenerating={isGenerating}
+                  hasTriedFree={hasTriedFree}
+                  savedFormData={savedFormData}
+                />
+                
+                {/* Personal Center Button for authenticated users */}
+                {user && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: 0.2 }}
+                    className="text-center mt-6"
+                  >
+                    <button
+                      onClick={() => router.push('/profile')}
+                      className="inline-flex items-center gap-2 px-6 py-3 text-sm font-medium text-primary hover:text-primary/80 transition-colors border border-primary/20 hover:border-primary/40 rounded-lg"
                     >
-                      <button
-                        onClick={() => router.push('/profile')}
-                        className="inline-flex items-center gap-2 px-6 py-3 text-sm font-medium text-primary hover:text-primary/80 transition-colors border border-primary/20 hover:border-primary/40 rounded-lg"
-                      >
-                        👤 Profile - View History & Saved Names
-                      </button>
-                    </motion.div>
-                  )}
-                </div>
-              </motion.div>
-            ) : (
-              <NamesGrid
-                names={generatedNames}
-                onRegenerate={handleRegenerate}
-                onBackToForm={handleBackToForm}
-                isGenerating={isGenerating}
-                // Batch-internal pagination props (for same batch, different rounds)
-                currentPage={currentGenerationRound - 1} // Convert to 0-based index
-                totalPages={totalGenerationRounds}
-                onPageChange={(page) => handleRoundChange(page + 1)} // Convert back to 1-based
-                isAuthenticated={!!user}
-                isLoadingHistory={isLoadingHistory}
-                // History browsing props  
-                isHistoryView={isInHistoryMode}
-                currentBatchInfo={currentBatch ? {
-                  englishName: currentBatch.englishName,
-                  gender: currentBatch.gender,
-                  planType: currentBatch.planType,
-                  createdAt: currentBatch.createdAt
-                } : undefined}
-                // New props for continue generation
-                showContinueGeneration={!isInHistoryMode && !!currentBatch}
-                onContinueGeneration={handleContinueGeneration}
-              />
-            )}
+                      👤 Profile - View History & Saved Names
+                    </button>
+                  </motion.div>
+                )}
+              </div>
+            </motion.div>
           </div>
         </div>
       </section>
 
-      {/* Popular Names Section - Only show when not generating */}
-      {!showResults && (
-        <section className="py-20 bg-gradient-to-b from-background to-muted/20" data-popular-names>
-          <div className="container px-4 md:px-6">
-            <div className="mx-auto max-w-6xl">
-              <PopularNames onScrollToGenerator={scrollToForm} />
-            </div>
+      {/* Popular Names Section */}
+      <section className="py-20 bg-gradient-to-b from-background to-muted/20" data-popular-names>
+        <div className="container px-4 md:px-6">
+          <div className="mx-auto max-w-6xl">
+            <PopularNames onScrollToGenerator={scrollToForm} />
           </div>
-        </section>
-      )}
+        </div>
+      </section>
 
-      {/* Features Section - Only show when not generating */}
-      {!showResults && (
-        <section id="features" className="py-20 bg-muted/20">
-          <div className="container px-4 md:px-6">
-            <div className="mx-auto max-w-6xl space-y-12 text-center">
+      {/* Features Section */}
+      <section id="features" className="py-20 bg-muted/20">
+        <div className="container px-4 md:px-6">
+          <div className="mx-auto max-w-6xl space-y-12 text-center">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.4 }}
+              className="space-y-4"
+            >
+              <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+                Why Choose Our Chinese Name Generator?
+              </h2>
+              <p className="mx-auto max-w-3xl text-muted-foreground text-lg">
+                Advanced AI technology combined with deep cultural understanding to create meaningful Chinese names that truly represent you.
+              </p>
+            </motion.div>
+            
+            <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.4 }}
-                className="space-y-4"
+                transition={{ duration: 0.5, delay: 0.5 }}
+                className="rounded-2xl bg-background p-8 shadow-sm border border-border"
               >
-                <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-                  Why Choose Our Chinese Name Generator?
-                </h2>
-                <p className="mx-auto max-w-3xl text-muted-foreground text-lg">
-                  Advanced AI technology combined with deep cultural understanding to create meaningful Chinese names that truly represent you.
-                </p>
+                <div className="space-y-4">
+                  <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+                    <span className="text-2xl">🤖</span>
+                  </div>
+                  <h3 className="text-xl font-bold text-foreground">AI-Powered Intelligence</h3>
+                  <p className="text-muted-foreground">
+                    Our advanced AI understands your personality traits, preferences, and cultural nuances to create names that truly represent you.
+                  </p>
+                </div>
               </motion.div>
               
-              <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.5 }}
-                  className="rounded-2xl bg-background p-8 shadow-sm border border-border"
-                >
-                  <div className="space-y-4">
-                    <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-                      <span className="text-2xl">🤖</span>
-                    </div>
-                    <h3 className="text-xl font-bold text-foreground">AI-Powered Intelligence</h3>
-                    <p className="text-muted-foreground">
-                      Our advanced AI understands your personality traits, preferences, and cultural nuances to create names that truly represent you.
-                    </p>
-                  </div>
-                </motion.div>
-                
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.6 }}
-                  className="rounded-2xl bg-background p-8 shadow-sm border border-border"
-                >
-                  <div className="space-y-4">
-                    <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-                      <span className="text-2xl">🏮</span>
-                    </div>
-                    <h3 className="text-xl font-bold text-foreground">Cultural Authenticity</h3>
-                    <p className="text-muted-foreground">
-                      Each name is crafted with deep understanding of Chinese naming traditions, character meanings, and cultural significance.
-                    </p>
-                  </div>
-                </motion.div>
-                
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.7 }}
-                  className="rounded-2xl bg-background p-8 shadow-sm border border-border"
-                >
-                  <div className="space-y-4">
-                    <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-                      <span className="text-2xl">⚡</span>
-                    </div>
-                    <h3 className="text-xl font-bold text-foreground">Instant Generation</h3>
-                    <p className="text-muted-foreground">
-                      Get your personalized Chinese name in seconds, complete with detailed meanings, pronunciation guides, and cultural context.
-                    </p>
-                  </div>
-                </motion.div>
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* Pricing Section - Only show when not generating */}
-      {!showResults && (
-        <div id="pricing">
-          <ChineseNamePricing onScrollToForm={scrollToForm} />
-        </div>
-      )}
-
-
-      {/* Final CTA Section - Only show when not generating */}
-      {!showResults && (
-        <section className="py-20 bg-gradient-to-b from-muted/10 to-background">
-          <div className="container px-4 md:px-6">
-            <div className="mx-auto max-w-4xl text-center space-y-8">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.9 }}
-                className="space-y-6"
+                transition={{ duration: 0.5, delay: 0.6 }}
+                className="rounded-2xl bg-background p-8 shadow-sm border border-border"
               >
-                <h2 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl md:text-6xl">
-                  Start Your Cultural Journey Today
-                </h2>
-                <p className="mx-auto max-w-2xl text-muted-foreground text-lg">
-                  Discover the perfect Chinese name that represents your identity, personality, and cultural connection.
-                  <br />
-                  Join thousands who have found their authentic Chinese identity.
-                </p>
-                <div className="flex flex-col sm:flex-row justify-center gap-4 pt-4">
-                  <button 
-                    onClick={scrollToForm}
-                    className="inline-flex items-center justify-center h-14 px-8 text-lg font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-md transition-colors shadow-lg"
-                  >
-                    {loading ? 'Loading...' : !user ? (hasTriedFree ? '🔒 Sign In for Unlimited Names' : '🎁 Get Your Free Chinese Name') : '🎯 Generate Chinese Name'}
-                  </button>
-                  <a 
-                    href="#chinese-name-pricing"
-                    className="inline-flex items-center justify-center h-14 px-8 text-lg font-medium text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    View Premium Features →
-                  </a>
+                <div className="space-y-4">
+                  <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+                    <span className="text-2xl">🏮</span>
+                  </div>
+                  <h3 className="text-xl font-bold text-foreground">Cultural Authenticity</h3>
+                  <p className="text-muted-foreground">
+                    Each name is crafted with deep understanding of Chinese naming traditions, character meanings, and cultural significance.
+                  </p>
+                </div>
+              </motion.div>
+              
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.7 }}
+                className="rounded-2xl bg-background p-8 shadow-sm border border-border"
+              >
+                <div className="space-y-4">
+                  <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+                    <span className="text-2xl">⚡</span>
+                  </div>
+                  <h3 className="text-xl font-bold text-foreground">Instant Generation</h3>
+                  <p className="text-muted-foreground">
+                    Get your personalized Chinese name in seconds, complete with detailed meanings, pronunciation guides, and cultural context.
+                  </p>
                 </div>
               </motion.div>
             </div>
           </div>
-        </section>
-      )}
+        </div>
+      </section>
+
+      {/* Pricing Section */}
+      <div id="pricing">
+        <ChineseNamePricing onScrollToForm={scrollToForm} />
+      </div>
+
+
+      {/* Final CTA Section */}
+      <section className="py-20 bg-gradient-to-b from-muted/10 to-background">
+        <div className="container px-4 md:px-6">
+          <div className="mx-auto max-w-4xl text-center space-y-8">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.9 }}
+              className="space-y-6"
+            >
+              <h2 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl md:text-6xl">
+                Start Your Cultural Journey Today
+              </h2>
+              <p className="mx-auto max-w-2xl text-muted-foreground text-lg">
+                Discover the perfect Chinese name that represents your identity, personality, and cultural connection.
+                <br />
+                Join thousands who have found their authentic Chinese identity.
+              </p>
+              <div className="flex flex-col sm:flex-row justify-center gap-4 pt-4">
+                <button 
+                  onClick={scrollToForm}
+                  className="inline-flex items-center justify-center h-14 px-8 text-lg font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-md transition-colors shadow-lg"
+                >
+                  {loading ? 'Loading...' : !user ? (hasTriedFree ? '🔒 Sign In for Unlimited Names' : '🎁 Get Your Free Chinese Name') : '🎯 Generate Chinese Name'}
+                </button>
+                <a 
+                  href="#chinese-name-pricing"
+                  className="inline-flex items-center justify-center h-14 px-8 text-lg font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  View Premium Features →
+                </a>
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
