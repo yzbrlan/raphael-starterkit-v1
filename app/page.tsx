@@ -435,7 +435,7 @@ export default function Home() {
 
       {/* Features Section - Only show when not generating */}
       {!showResults && (
-        <section className="py-20 bg-muted/20">
+        <section id="features" className="py-20 bg-muted/20">
           <div className="container px-4 md:px-6">
             <div className="mx-auto max-w-6xl space-y-12 text-center">
               <motion.div
@@ -511,90 +511,11 @@ export default function Home() {
 
       {/* Pricing Section - Only show when not generating */}
       {!showResults && (
-        <ChineseNamePricing onScrollToForm={scrollToForm} />
+        <div id="pricing">
+          <ChineseNamePricing onScrollToForm={scrollToForm} />
+        </div>
       )}
 
-      {/* Social Proof Section - Only show when not generating */}
-      {!showResults && (
-        <section className="py-20 bg-background">
-          <div className="container px-4 md:px-6">
-            <div className="mx-auto max-w-6xl space-y-12 text-center">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.8 }}
-                className="space-y-4"
-              >
-                <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-                  Loved by Thousands Worldwide
-                </h2>
-                <p className="mx-auto max-w-3xl text-muted-foreground text-lg">
-                  Join thousands of satisfied users who have discovered their perfect Chinese name with our AI-powered generator.
-                </p>
-              </motion.div>
-              
-              <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-                <div className="rounded-2xl border p-8 shadow-sm bg-background">
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-1">
-                      {[...Array(5)].map((_, i) => (
-                        <span key={i} className="text-yellow-400">⭐</span>
-                      ))}
-                    </div>
-                    <p className="text-muted-foreground">
-                      "The name perfectly captures my personality. I love how it combines traditional meaning with my personal traits and cultural significance."
-                    </p>
-                    <div>
-                      <h4 className="font-bold">Sarah Johnson</h4>
-                      <p className="text-primary font-medium">
-                        Chinese name: 李雨桐 (Lǐ Yǔtóng)
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="rounded-2xl border p-8 shadow-sm bg-background">
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-1">
-                      {[...Array(5)].map((_, i) => (
-                        <span key={i} className="text-yellow-400">⭐</span>
-                      ))}
-                    </div>
-                    <p className="text-muted-foreground">
-                      "As someone studying Chinese culture, having an authentic Chinese name has been incredibly helpful for my cultural immersion and studies."
-                    </p>
-                    <div>
-                      <h4 className="font-bold">Michael Chen</h4>
-                      <p className="text-primary font-medium">
-                        Chinese name: 陈铭哲 (Chén Míngzhé)
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="rounded-2xl border p-8 shadow-sm bg-background">
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-1">
-                      {[...Array(5)].map((_, i) => (
-                        <span key={i} className="text-yellow-400">⭐</span>
-                      ))}
-                    </div>
-                    <p className="text-muted-foreground">
-                      "My Chinese colleagues were impressed by how meaningful and appropriate my AI-generated name is. It really reflects who I am!"
-                    </p>
-                    <div>
-                      <h4 className="font-bold">Emily Davis</h4>
-                      <p className="text-primary font-medium">
-                        Chinese name: 戴美丽 (Dài Měilì)
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
 
       {/* Final CTA Section - Only show when not generating */}
       {!showResults && (
