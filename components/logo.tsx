@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Code2 } from "lucide-react";
+import Image from "next/image";
 
 export function Logo() {
   return (
@@ -7,8 +7,18 @@ export function Logo() {
       href="/"
       className="flex items-center gap-2 hover:opacity-90 transition-opacity"
     >
-      <Code2 className="w-6 h-6" />
-      <span className="font-bold text-lg">Raphael Starter</span>
+      <div className="flex items-center justify-center">
+        <Image
+          src="/images/chinesename-logo.png"
+          alt="ChineseName.club Logo"
+          width={32}
+          height={32}
+          className="w-8 h-8"
+        />
+      </div>
+      <span className="font-bold text-lg bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
+        ChineseName.club
+      </span>
     </Link>
   );
 }

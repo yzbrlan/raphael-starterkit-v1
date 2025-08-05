@@ -22,10 +22,12 @@ export async function POST(request: Request) {
       !signature ||
       !verifyCreemWebhookSignature(body, signature, CREEM_WEBHOOK_SECRET)
     ) {
+      console.error("Invalid webhook signature");
       return new NextResponse("Invalid signature", { status: 401 });
     }
 
     const event = JSON.parse(body) as CreemWebhookEvent;
+    console.log("Received webhook event:", event.eventType, event.object?.id);
 
     // Handle different event types
     switch (event.eventType) {
@@ -56,7 +58,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ received: true });
   } catch (error) {
     console.error("Error processing webhook:", error);
-    return new NextResponse("Webhook error", { status: 400 });
+    // Return more specific error information
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json(
+      { error: "Webhook processing failed", details: errorMessage },
+      { status: 500 }
+    );
   }
 }
 
@@ -65,10 +72,16 @@ async function handleCheckoutCompleted(event: CreemWebhookEvent) {
   console.log("Processing completed checkout:", checkout);
 
   try {
+    // Validate required data
+    if (!checkout.metadata?.user_id) {
+      console.error("Missing user_id in checkout metadata:", checkout);
+      throw new Error("user_id is required in checkout metadata");
+    }
+
     // Create or update customer
     const customerId = await createOrUpdateCustomer(
       checkout.customer,
-      checkout.metadata?.user_id // Make sure to pass user_id in metadata when creating checkout
+      checkout.metadata.user_id
     );
 
     // Check if this is a credit purchase

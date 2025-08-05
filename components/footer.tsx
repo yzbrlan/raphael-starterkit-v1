@@ -9,31 +9,22 @@ const footerLinks = [
   {
     title: "Product",
     links: [
-      { label: "Features", href: "#features" },
-      { label: "Pricing", href: "#pricing" },
-      { label: "Documentation", href: "#docs" },
-      { label: "Changelog", href: "#changelog" },
-      { label: "Integration", href: "#integration" },
+      { label: "Features", href: "/#features" },
+      { label: "Pricing", href: "/#pricing" },
     ],
   },
   {
     title: "Company",
     links: [
-      { label: "About", href: "#about" },
+      { label: "About", href: "/about" },
       { label: "Blog", href: "#blog" },
-      { label: "Careers", href: "#careers" },
-      { label: "Contact", href: "#contact" },
-      { label: "Partners", href: "#partners" },
     ],
   },
   {
     title: "Legal",
     links: [
-      { label: "Privacy", href: "#privacy" },
-      { label: "Terms", href: "#terms" },
-      { label: "License", href: "#license" },
-      { label: "Security", href: "#security" },
-      { label: "Compliance", href: "#compliance" },
+      { label: "Privacy", href: "/privacy" },
+      { label: "Terms", href: "/terms" },
     ],
   },
 ];

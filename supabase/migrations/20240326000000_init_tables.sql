@@ -1,5 +1,5 @@
--- Enable RLS (Row Level Security)
-alter table auth.users enable row level security;
+-- Note: auth.users table already has RLS enabled by default
+-- We don't need to modify system tables
 
 -- Create customers table to link Supabase users with Creem customers
 create table public.customers (

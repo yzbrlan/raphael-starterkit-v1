@@ -45,12 +45,13 @@ function isInGracePeriod(status: SubscriptionState, endDate: string): boolean {
 }
 
 export function useSubscription() {
-  const [subscription, setSubscription] = useState<SubscriptionStatus>({
+  const [subscription, setSubscription] = useState<SubscriptionStatus & { credits?: number }>({
     isSubscribed: false,
     status: null,
     willEndOn: null,
     isInGracePeriod: false,
     daysLeft: null,
+    credits: 0,
   });
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
@@ -73,6 +74,7 @@ export function useSubscription() {
         .from("customers")
         .select(
           `
+          credits,
           subscriptions (
             status,
             current_period_end,
@@ -84,7 +86,18 @@ export function useSubscription() {
         .single();
 
       const sub = customerData?.subscriptions?.[0];
+      const credits = customerData?.credits || 0;
+
       if (!sub) {
+        // No subscription, but user might have credits
+        setSubscription({
+          isSubscribed: false,
+          status: null,
+          willEndOn: null,
+          isInGracePeriod: false,
+          daysLeft: null,
+          credits: credits,
+        });
         setLoading(false);
         return;
       }
@@ -101,6 +114,7 @@ export function useSubscription() {
         willEndOn: endDate,
         isInGracePeriod: isInGracePeriod(sub.status, sub.current_period_end),
         daysLeft: daysLeft,
+        credits: credits,
       });
     } catch (error) {
       console.error("Error checking subscription:", error);
