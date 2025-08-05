@@ -262,7 +262,7 @@ export default function Home() {
                 </p>
               </div>
 
-              <div data-name-generator-form>
+              <div id="name-generator-form" data-name-generator-form>
                 <NameGeneratorForm 
                   onGenerate={handleGenerate}
                   isGenerating={isGenerating}

@@ -329,8 +329,8 @@ export default function NamesGrid({
           onClick={() => {
             // Clear session storage when going back to form
             sessionStorage.removeItem('nameGenerationResults');
-            // Navigate to homepage
-            router.push('/');
+            // Navigate to homepage form section
+            router.push('/#name-generator-form');
           }}
           variant="outline"
           size="lg"

@@ -215,7 +215,7 @@ export default function ResultsPage() {
   const handleBackToForm = () => {
     // Clear session data when going back to form
     sessionStorage.removeItem('nameGenerationResults');
-    router.push('/');
+    router.push('/#name-generator-form');
   };
 
   // Compare form parameters to determine if new batch is needed
