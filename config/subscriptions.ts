@@ -2,55 +2,40 @@ import { ProductTier } from "@/types/subscriptions";
 
 export const SUBSCRIPTION_TIERS: ProductTier[] = [
   {
-    name: "Starter",
-    id: "tier-hobby",
-    productId: "prod_63JTQmsUcQrlZe94IL76fI", // $11 monthly subscription
-    priceMonthly: "$11",
-    description: "Perfect for individual developers and small projects.",
+    name: "Premium",
+    id: "tier-premium",
+    productId: "prod_6bDyUQWacip8zR81gDlnsz", // $10 monthly subscription
+    priceMonthly: "$10",
+    description: "2,000 credits / mo · No ads · No watermark · Fast generation (5x).",
     features: [
-      "Global authentication system",
-      "Database integration",
-      "Secure API routes",
-      "Modern UI components",
-      "Dark/Light mode",
-      "Community forum access",
+      "2,000 credits per month",
+      "Unlimited image generation",
+      "Fast generation (5x speed)",
+      "No ads, no watermarks",
+      "Fast AI Photo Editor (2x speed)",
     ],
     featured: false,
-    discountCode: "", // Optional discount code
+    discountCode: "",
   },
   {
-    name: "Business",
-    id: "tier-pro",
-    productId: "prod_6rOJtTwlyjsH9AVuSzh8aR", // $29 monthly subscription (测试产品)
-    priceMonthly: "$29",
-    description: "Ideal for growing businesses and development teams.",
+    name: "Ultimate",
+    id: "tier-ultimate",
+    productId: "prod_3vPaODNvhpdP3OyVh2rJW8", // $20 monthly subscription
+    priceMonthly: "$20",
+    description: "5,000 credits / mo · Fastest generation · HD images · Private generation.",
     features: [
-      "Everything in Starter",
-      "Multi-currency payments",
-      "Priority support",
-      "Advanced analytics",
-      "Custom branding options",
-      "API usage dashboard",
+      "5,000 credits per month",
+      "Unlimited image generation",
+      "Fastest generation",
+      "Instant AI Photo Editor (5x speed)",
+      "No ads, no watermarks",
+      "Advanced Refine feature",
+      "Private generation",
+      "HD image generation",
+      "Early access to new features",
     ],
     featured: true,
-    discountCode: "", // Optional discount code - 临时移除
-  },
-  {
-    name: "Enterprise",
-    id: "tier-enterprise",
-    productId: "prod_3qPYksZMtk94wQsdkgajrJ", // $99 monthly subscription
-    priceMonthly: "$99",
-    description: "For large organizations with advanced requirements.",
-    features: [
-      "Everything in Business",
-      "Dedicated account manager",
-      "Custom implementation support",
-      "High-volume transaction processing",
-      "Advanced security features",
-      "Service Level Agreement (SLA)",
-    ],
-    featured: false,
-    discountCode: "", // Optional discount code
+    discountCode: "",
   },
 ];
 
